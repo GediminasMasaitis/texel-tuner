@@ -11,8 +11,6 @@ using namespace std;
 using namespace std::chrono;
 using namespace Tuner;
 
-using tune_t = double;
-
 struct WdlMarker
 {
     string marker;
@@ -80,7 +78,7 @@ static void load_fens(const DataSource& source, const high_resolution_clock::tim
             throw std::runtime_error("WDL marker not found");
         }
 
-        int eval = Toy::ToyEval::evaluate_fen(line);
+        auto coefficients = Toy::ToyEval::get_fen_coefficients(line);
 
         positions++;
         if (positions % 100000 == 0)

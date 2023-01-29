@@ -1,4 +1,5 @@
 #include "toy.h"
+#include "../base.h"
 
 #include <stdexcept>
 
@@ -27,7 +28,7 @@ struct Position
     std::array<Pieces, 64> pieces{ Pieces::None };
 };
 
-Pieces char_to_piece(char ch)
+static Pieces char_to_piece(const char ch)
 {
     switch (ch)
     {
@@ -47,7 +48,7 @@ Pieces char_to_piece(char ch)
     }
 }
 
-void parse_fen(const string& fen, Position& position)
+static void parse_fen(const string& fen, Position& position)
 {
     int flipped_square = 0;
     for(char ch : fen)
@@ -84,11 +85,16 @@ void parse_fen(const string& fen, Position& position)
     }
 }
 
+struct Trace
+{
+    int material[6][2]{};
+};
+
 constexpr std::array<int, 6> material{ 100, 300, 300, 500, 900 };
 
-int evaluate(const Position& position)
+static Trace trace_evaluate(const Position& position)
 {
-    int score = 0;
+    Trace trace;
     for(int i = 0; i < 64; i++)
     {
         auto piece = position.pieces[i];
@@ -100,19 +106,37 @@ int evaluate(const Position& position)
 
         if(piece >= Pieces::BlackPawn)
         {
-            score -= material[static_cast<int>(piece) - static_cast<int>(Pieces::BlackPawn)];
+            const int materialIndex = static_cast<int>(piece) - static_cast<int>(Pieces::BlackPawn);
+            trace.material[materialIndex][0]++;
         }
         else
         {
-            score += material[static_cast<int>(piece) - static_cast<int>(Pieces::WhitePawn)];
+            const int materialIndex = static_cast<int>(piece) - static_cast<int>(Pieces::WhitePawn);
+            trace.material[materialIndex][1]++;
         }
     }
-    return score;
+    return trace;
 }
 
-int ToyEval::evaluate_fen(const std::string& fen)
+coefficients_t get_coefficients(const Trace& trace)
+{
+    coefficients_t coefficients;
+    get_coefficient_array(coefficients, trace.material, 6);
+    return coefficients;
+}
+
+parameters_t ToyEval::get_initial_parameters()
+{
+    parameters_t parameters;
+    get_initial_parameter_array(parameters, material, material.size());
+    return parameters;
+}
+
+coefficients_t ToyEval::get_fen_coefficients(const std::string& fen)
 {
     Position position;
     parse_fen(fen, position);
-    return evaluate(position);
+    auto trace = trace_evaluate(position);
+    auto coefficients = get_coefficients(trace);
+    return coefficients;
 }
