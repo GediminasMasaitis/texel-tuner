@@ -3,5 +3,6 @@
 .vscode
 
 out
+enc_temp_folder
 
 CMakeSettings.json

@@ -4,8 +4,8 @@
 #include <vector>
 
 using tune_t = double;
-using coefficients_t = std::vector<tune_t>;
 using parameters_t = std::vector<tune_t>;
+using coefficients_t = std::vector<int16_t>;
 
 
 template<typename T>
@@ -27,7 +27,7 @@ void get_initial_parameter_array(parameters_t& parameters, const T& parameter, c
 template<typename T>
 void get_coefficient_single(coefficients_t& coefficients, const T& trace)
 {
-    coefficients.push_back(static_cast<tune_t>(trace[0] - trace[1]));
+    coefficients.push_back(static_cast<int16_t>(trace[0] - trace[1]));
 }
 
 template<typename T>
