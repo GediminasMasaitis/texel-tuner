@@ -107,10 +107,10 @@ static tune_t linear_eval(const Entry& entry, const parameters_t& parameters)
         score += coefficient.value * parameters[coefficient.index];
     }
 
-    if(!entry.white_to_move)
-    {
-        score = -score;
-    }
+    //if(!entry.white_to_move)
+    //{
+    //    score = -score;
+    //}
 
     return score;
 }
@@ -159,12 +159,14 @@ static tune_t sigmoid(tune_t K, tune_t eval)
     return 1.0 / (1.0 + exp(-K * eval / 400.0));
 }
 
-static tune_t get_average_error(const vector<Entry>& entries, double K)
+static tune_t get_average_error(const vector<Entry>& entries, const parameters_t& parameters, double K)
 {
     tune_t total_error = 0;
     for (const auto& entry : entries)
     {
-        const auto diff = entry.wdl - sigmoid(K, entry.initial_eval);
+        const auto eval = linear_eval(entry, parameters);
+        const auto diff = entry.wdl - sigmoid(K, eval);
+        //const auto diff = entry.wdl - sigmoid(K, entry.initial_eval);
         const auto error = pow(diff, 2);
         total_error += error;
     }
@@ -173,7 +175,7 @@ static tune_t get_average_error(const vector<Entry>& entries, double K)
     return avg_error;
 }
 
-static double find_optimal_k(const vector<Entry>& entries)
+static double find_optimal_k(const vector<Entry>& entries, const parameters_t& parameters)
 {
     constexpr tune_t rate = 10;
     constexpr tune_t delta = 1e-5;
@@ -182,13 +184,36 @@ static double find_optimal_k(const vector<Entry>& entries)
     tune_t deviation = 1;
 
     while (fabs(deviation) > deviation_goal) {
-        const tune_t up = get_average_error(entries, K + delta);
-        const tune_t down = get_average_error(entries, K - delta);
+        const tune_t up = get_average_error(entries, parameters, K + delta);
+        const tune_t down = get_average_error(entries, parameters, K - delta);
         deviation = (up - down) / (2 * delta);
         K -= deviation * rate;
     }
 
     return K;
+}
+
+static void UpdateSingleGradient(Entry& entry, parameters_t& gradient, parameters_t& params, double K) {
+
+    double eval = linear_eval(entry, params);
+    double sig = sigmoid(K, eval);
+    double res = (entry.wdl - sig) * sig * (1 - sig);
+
+    for (auto& coefficient : entry.coefficients)
+    {
+        int index = coefficient.index;
+        int coeff = coefficient.value;
+
+        gradient[index] += res * coeff;
+    }
+}
+
+static void ComputeGradient(std::vector<Entry>& entries, parameters_t& gradient, parameters_t& params, double K)
+{
+    for (int i = 0; i < entries.size(); i++)
+    {
+        UpdateSingleGradient(entries[i], gradient, params, K);
+    }
 }
 
 void Tuner::run(const std::vector<DataSource>& sources)
@@ -207,17 +232,48 @@ void Tuner::run(const std::vector<DataSource>& sources)
     debug_entry.initial_eval = linear_eval(debug_entry, parameters);
 
     vector<Entry> entries;
+    entries.push_back(debug_entry);
     for (const auto& source : sources)
     {
         load_fens(source, parameters, start, entries);
     }
     cout << "Data loading complete" << endl;
 
-    cout << "Finding optimal K..." << endl;
-    const auto K = find_optimal_k(entries);
+    //cout << "Finding optimal K..." << endl;
+    //const auto K = find_optimal_k(entries, parameters);
+    const auto K = 2;
     cout << "K = " << K << endl;
-    const auto avg_error = get_average_error(entries, K);
-    cout << "Initial error = " << avg_error;
+    const auto avg_error = get_average_error(entries, parameters, K);
+    cout << "Initial error = " << avg_error << endl;
     cout << "Initial parameters:" << endl;
     TuneEval::print_parameters(parameters);
+
+    parameters_t momentum(parameters.size(), 0);
+    parameters_t velocity(parameters.size(), 0);
+
+    for (int epoch = 1; epoch < 1000000; epoch++)
+    {
+        parameters_t gradient(parameters.size(), 0);
+        ComputeGradient(entries, gradient, parameters, K);
+
+        constexpr tune_t learning_rate = 0.3;
+        constexpr tune_t beta1 = 0.9;
+        constexpr tune_t beta2 = 0.999;
+
+        for (int i = 1; i < parameters.size(); i++) {
+            const tune_t grad = -K / 400.0 * gradient[i] / static_cast<tune_t>(entries.size());
+            momentum[i] = beta1 * momentum[i] + (1 - beta1) * grad;
+            velocity[i] = beta2 * velocity[i] + (1 - beta2) * pow(grad, 2);
+            parameters[i] -= learning_rate * momentum[i] / (1e-8 + sqrt(velocity[i]));
+        }
+
+        const tune_t error = get_average_error(entries, parameters, K);
+
+        if (epoch % 10 == 0)
+        {
+            print_elapsed(start);
+            cout << "Epoch " << epoch << ", error " << error << endl;
+            TuneEval::print_parameters(parameters);
+        }
+    }
 }

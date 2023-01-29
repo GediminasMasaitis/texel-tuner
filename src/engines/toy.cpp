@@ -110,14 +110,14 @@ static Trace trace_evaluate(const Position& position)
             continue;
         }
 
-        if(piece >= Pieces::BlackPawn)
+        if(piece < Pieces::BlackPawn)
         {
-            const int materialIndex = static_cast<int>(piece) - static_cast<int>(Pieces::BlackPawn);
+            const int materialIndex = static_cast<int>(piece) - static_cast<int>(Pieces::WhitePawn);
             trace.material[materialIndex][0]++;
         }
         else
         {
-            const int materialIndex = static_cast<int>(piece) - static_cast<int>(Pieces::WhitePawn);
+            const int materialIndex = static_cast<int>(piece) - static_cast<int>(Pieces::BlackPawn);
             trace.material[materialIndex][1]++;
         }
     }
