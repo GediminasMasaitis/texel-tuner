@@ -1,6 +1,8 @@
 #include "toy.h"
 #include "../base.h"
 
+#include <iostream>
+#include <sstream>
 #include <stdexcept>
 
 using namespace std;
@@ -90,7 +92,7 @@ struct Trace
     int material[6][2]{};
 };
 
-constexpr std::array<int, 6> material{ 100, 300, 300, 500, 900 };
+constexpr std::array<int, 6> material = { 100, 300, 300, 500, 900 };
 
 static Trace trace_evaluate(const Position& position)
 {
@@ -139,4 +141,34 @@ coefficients_t ToyEval::get_fen_coefficients(const std::string& fen)
     auto trace = trace_evaluate(position);
     auto coefficients = get_coefficients(trace);
     return coefficients;
+}
+
+static void print_single(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name)
+{
+    ss << "constexpr int " << name << " = " << parameters[index] << ";" << endl;
+    index++;
+}
+
+static void print_array(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name, int count)
+{
+    ss << "constexpr int " << name << "[] = {";
+    for (auto i = 0; i < count; i++)
+    {
+        ss << parameters[i];
+        index++;
+
+        if (i != count - 1)
+        {
+            ss << ", ";
+        }
+    }
+    ss << "};" << endl;
+}
+
+void ToyEval::print_parameters(const parameters_t& parameters)
+{
+    int index = 0;
+    stringstream ss;
+    print_array(ss, parameters, index, "material", 6);
+    cout << ss.str() << "\n";
 }

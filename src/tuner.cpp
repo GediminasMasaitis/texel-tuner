@@ -1,6 +1,6 @@
 #include "tuner.h"
 #include "base.h"
-#include "engines/toy.h"
+#include "config.h"
 
 #include <array>
 #include <chrono>
@@ -79,7 +79,7 @@ static void print_elapsed(high_resolution_clock::time_point start)
 
 static void get_coefficient_entries(const string& fen, vector<CoefficientEntry>& coefficient_entries)
 {
-    const auto coefficients = Toy::ToyEval::get_fen_coefficients(fen);
+    const auto coefficients = TuneEval::get_fen_coefficients(fen);
     for (int16_t i = 0; i < coefficients.size(); i++)
     {
         if (coefficients[i] == 0)
@@ -124,19 +124,41 @@ static void load_fens(const DataSource& source, const high_resolution_clock::tim
             std::cout << "Loaded " << position_count << " entries..." << std::endl;
         }
     }
+
+    print_elapsed(start);
     std::cout << "Loaded " << position_count << " entries from " << source.path << ", " << entries.size() << " total" << std::endl;
+}
+
+static tune_t linear_eval(Entry& entry, parameters_t& parameters)
+{
+    tune_t score = 0;
+    for (const auto& coefficient : entry.coefficients)
+    {
+        score += coefficient.value * parameters[coefficient.index];
+    }
+    return score;
 }
 
 void Tuner::run(const std::vector<DataSource>& sources)
 {
-    cout << "Starting texel tuning" << endl << endl;
+    cout << "Starting tuning" << endl << endl;
     const auto start = high_resolution_clock::now();
+
+    // Debug entry
+    const string debug_fen = "rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQK1NR w KQkq - 0 1; 1.0";
+    Entry debug_entry;
+    debug_entry.wdl = get_fen_wdl(debug_fen);
+    get_coefficient_entries(debug_fen, debug_entry.coefficients);
 
     vector<Entry> entries;
     for (const auto& source : sources)
     {
         load_fens(source, start, entries);
     }
+    cout << "Data loading complete" << endl;
 
-    cout << "Data loading complete";
+    auto parameters = TuneEval::get_initial_parameters();
+    cout << "Initial parameters:" << endl;
+
+    TuneEval::print_parameters(parameters);
 }

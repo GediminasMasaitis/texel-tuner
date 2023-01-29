@@ -14,6 +14,7 @@ namespace Toy
     public:
         static parameters_t get_initial_parameters();
         static coefficients_t get_fen_coefficients(const std::string& fen);
+        static void print_parameters(const parameters_t& parameters);
     };
 }
 
