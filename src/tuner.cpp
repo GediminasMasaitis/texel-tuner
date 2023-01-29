@@ -29,6 +29,8 @@ struct Entry
 {
     vector<CoefficientEntry> coefficients;
     tune_t wdl;
+    bool white_to_move;
+    tune_t initial_eval;
 };
 
 static const array<WdlMarker, 6> markers
@@ -67,6 +69,11 @@ tune_t get_fen_wdl(const string& fen)
     }
 
     return result;
+}   
+
+bool get_fen_color_to_move(const string& fen)
+{
+    return fen.find('w') != std::string::npos;
 }
 
 static void print_elapsed(high_resolution_clock::time_point start)
@@ -92,7 +99,23 @@ static void get_coefficient_entries(const string& fen, vector<CoefficientEntry>&
     }
 }
 
-static void load_fens(const DataSource& source, const high_resolution_clock::time_point start, vector<Entry>& entries)
+static tune_t linear_eval(const Entry& entry, const parameters_t& parameters)
+{
+    tune_t score = 0;
+    for (const auto& coefficient : entry.coefficients)
+    {
+        score += coefficient.value * parameters[coefficient.index];
+    }
+
+    if(!entry.white_to_move)
+    {
+        score = -score;
+    }
+
+    return score;
+}
+
+static void load_fens(const DataSource& source, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries)
 {
     std::cout << "Loading " << source.path << std::endl;
 
@@ -114,7 +137,9 @@ static void load_fens(const DataSource& source, const high_resolution_clock::tim
 
         Entry entry;
         entry.wdl = get_fen_wdl(fen);
+        entry.white_to_move = get_fen_color_to_move(fen);
         get_coefficient_entries(fen, entry.coefficients);
+        entry.initial_eval = linear_eval(entry, parameters);
         entries.push_back(entry);
         
         position_count++;
@@ -129,14 +154,41 @@ static void load_fens(const DataSource& source, const high_resolution_clock::tim
     std::cout << "Loaded " << position_count << " entries from " << source.path << ", " << entries.size() << " total" << std::endl;
 }
 
-static tune_t linear_eval(Entry& entry, parameters_t& parameters)
+static tune_t sigmoid(tune_t K, tune_t eval)
 {
-    tune_t score = 0;
-    for (const auto& coefficient : entry.coefficients)
+    return 1.0 / (1.0 + exp(-K * eval / 400.0));
+}
+
+static tune_t get_average_error(const vector<Entry>& entries, double K)
+{
+    tune_t total_error = 0;
+    for (const auto& entry : entries)
     {
-        score += coefficient.value * parameters[coefficient.index];
+        const auto diff = entry.wdl - sigmoid(K, entry.initial_eval);
+        const auto error = pow(diff, 2);
+        total_error += error;
     }
-    return score;
+
+    const tune_t avg_error = total_error / static_cast<tune_t>(entries.size());
+    return avg_error;
+}
+
+static double find_optimal_k(const vector<Entry>& entries)
+{
+    constexpr tune_t rate = 10;
+    constexpr tune_t delta = 1e-5;
+    constexpr tune_t deviation_goal = 1e-6;
+    tune_t K = 2;
+    tune_t deviation = 1;
+
+    while (fabs(deviation) > deviation_goal) {
+        const tune_t up = get_average_error(entries, K + delta);
+        const tune_t down = get_average_error(entries, K - delta);
+        deviation = (up - down) / (2 * delta);
+        K -= deviation * rate;
+    }
+
+    return K;
 }
 
 void Tuner::run(const std::vector<DataSource>& sources)
@@ -144,21 +196,28 @@ void Tuner::run(const std::vector<DataSource>& sources)
     cout << "Starting tuning" << endl << endl;
     const auto start = high_resolution_clock::now();
 
+    auto parameters = TuneEval::get_initial_parameters();
+
     // Debug entry
     const string debug_fen = "rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQK1NR w KQkq - 0 1; 1.0";
     Entry debug_entry;
     debug_entry.wdl = get_fen_wdl(debug_fen);
+    debug_entry.white_to_move = get_fen_color_to_move(debug_fen);
     get_coefficient_entries(debug_fen, debug_entry.coefficients);
+    debug_entry.initial_eval = linear_eval(debug_entry, parameters);
 
     vector<Entry> entries;
     for (const auto& source : sources)
     {
-        load_fens(source, start, entries);
+        load_fens(source, parameters, start, entries);
     }
     cout << "Data loading complete" << endl;
 
-    auto parameters = TuneEval::get_initial_parameters();
+    cout << "Finding optimal K..." << endl;
+    const auto K = find_optimal_k(entries);
+    cout << "K = " << K << endl;
+    const auto avg_error = get_average_error(entries, K);
+    cout << "Initial error = " << avg_error;
     cout << "Initial parameters:" << endl;
-
     TuneEval::print_parameters(parameters);
 }

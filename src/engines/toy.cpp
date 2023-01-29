@@ -1,6 +1,7 @@
 #include "toy.h"
 #include "../base.h"
 
+#include <array>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -28,6 +29,7 @@ enum class Pieces
 struct Position
 {
     std::array<Pieces, 64> pieces{ Pieces::None };
+    bool white_to_move = true;
 };
 
 static Pieces char_to_piece(const char ch)
@@ -85,6 +87,8 @@ static void parse_fen(const string& fen, Position& position)
     {
         throw std::runtime_error("FEN parsing didn't complete board");
     }
+
+    position.white_to_move = fen.find('w') != std::string::npos;
 }
 
 struct Trace
