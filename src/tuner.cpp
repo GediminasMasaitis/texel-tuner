@@ -1,4 +1,5 @@
 #include "tuner.h"
+#include "engines/toy.h"
 
 #include <array>
 #include <chrono>
@@ -78,6 +79,8 @@ static void load_fens(const DataSource& source, const high_resolution_clock::tim
             cout << "WDL marker not found on line " << line << endl;
             throw std::runtime_error("WDL marker not found");
         }
+
+        int eval = Toy::ToyEval::evaluate_fen(line);
 
         positions++;
         if (positions % 100000 == 0)

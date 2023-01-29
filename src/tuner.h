@@ -1,5 +1,5 @@
 #ifndef TUNER_H
-#define TUNER_H
+#define TUNER_H 1
 
 #include <cstdint>
 #include <string>
