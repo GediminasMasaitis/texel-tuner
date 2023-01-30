@@ -193,26 +193,23 @@ static double find_optimal_k(const vector<Entry>& entries, const parameters_t& p
     return K;
 }
 
-static void UpdateSingleGradient(Entry& entry, parameters_t& gradient, parameters_t& params, double K) {
+static void update_single_gradient(parameters_t& gradient, const Entry& entry, const parameters_t& params, double K) {
 
-    double eval = linear_eval(entry, params);
-    double sig = sigmoid(K, eval);
-    double res = (entry.wdl - sig) * sig * (1 - sig);
+    const tune_t eval = linear_eval(entry, params);
+    const tune_t sig = sigmoid(K, eval);
+    const tune_t res = (entry.wdl - sig) * sig * (1 - sig);
 
-    for (auto& coefficient : entry.coefficients)
+    for (const auto& coefficient : entry.coefficients)
     {
-        int index = coefficient.index;
-        int coeff = coefficient.value;
-
-        gradient[index] += res * coeff;
+        gradient[coefficient.index] += res * coefficient.value;
     }
 }
 
-static void ComputeGradient(std::vector<Entry>& entries, parameters_t& gradient, parameters_t& params, double K)
+static void compute_gradient(parameters_t& gradient, const vector<Entry>& entries, const parameters_t& params, double K)
 {
-    for (int i = 0; i < entries.size(); i++)
+    for (const auto& entry : entries)
     {
-        UpdateSingleGradient(entries[i], gradient, params, K);
+        update_single_gradient(gradient, entry, params, K); 
     }
 }
 
@@ -243,6 +240,7 @@ void Tuner::run(const std::vector<DataSource>& sources)
     //const auto K = find_optimal_k(entries, parameters);
     const auto K = 2;
     cout << "K = " << K << endl;
+
     const auto avg_error = get_average_error(entries, parameters, K);
     cout << "Initial error = " << avg_error << endl;
     cout << "Initial parameters:" << endl;
@@ -254,9 +252,9 @@ void Tuner::run(const std::vector<DataSource>& sources)
     for (int epoch = 1; epoch < 1000000; epoch++)
     {
         parameters_t gradient(parameters.size(), 0);
-        ComputeGradient(entries, gradient, parameters, K);
+        compute_gradient(gradient, entries, parameters, K);
 
-        constexpr tune_t learning_rate = 0.3;
+        constexpr tune_t learning_rate = 0.03;
         constexpr tune_t beta1 = 0.9;
         constexpr tune_t beta2 = 0.999;
 
