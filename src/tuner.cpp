@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <thread>
 #include <vector>
 
 using namespace std;
@@ -205,12 +206,50 @@ static void update_single_gradient(parameters_t& gradient, const Entry& entry, c
     }
 }
 
+static void compute_gradient_thread(int start, int end, parameters_t& gradient, const vector<Entry>& entries, const parameters_t& params, double K)
+{
+    for(int i = start; i < end; i++)
+    {
+        const auto& entry = entries[i];
+        update_single_gradient(gradient, entry, params, K);
+    }
+}
+
 static void compute_gradient(parameters_t& gradient, const vector<Entry>& entries, const parameters_t& params, double K)
 {
-    for (const auto& entry : entries)
+    vector<thread> threads;
+    //const auto entries_per_thread = (entries.size() + thread_count - 1) / thread_count;
+    const auto entries_per_thread = entries.size() / thread_count;
+    array<parameters_t, thread_count> thread_gradients;
+
+    for(int thread_id = 0; thread_id < thread_count; thread_id++)
     {
-        update_single_gradient(gradient, entry, params, K); 
+        thread_gradients[thread_id] = parameters_t(params.size(), 0);
+        auto start = static_cast<int>(thread_id * entries_per_thread);
+        auto end = static_cast<int>((thread_id + 1) * entries_per_thread - 1);
+        threads.emplace_back([thread_id, start, end, &thread_gradients, &entries, &params, K]() mutable
+        {
+            compute_gradient_thread(start, end, thread_gradients[thread_id], entries, params, K);
+        });
     }
+
+    for (int thread_id = 0; thread_id < thread_count; thread_id++)
+    {
+        threads[thread_id].join();
+        //for(int i = 0; i < gradient.size(); i++)
+        //{
+        //    gradient
+        //}
+        for(auto parameter_index = 0; parameter_index < params.size(); parameter_index++)
+        {
+            gradient[parameter_index] += thread_gradients[thread_id][parameter_index];
+        }
+    }
+
+    //for (const auto& entry : entries)
+    //{
+    //    update_single_gradient(gradient, entry, params, K); 
+    //}
 }
 
 void Tuner::run(const std::vector<DataSource>& sources)
