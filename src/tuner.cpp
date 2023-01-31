@@ -329,7 +329,7 @@ void Tuner::run(const std::vector<DataSource>& sources)
         }
 
         constexpr int lr_drop_interval = 10000;
-        constexpr int lr_drop_ratio = 0.3;
+        constexpr int lr_drop_ratio = 1;
         if(epoch == lr_drop_interval)
         {
             learning_rate *= lr_drop_ratio;
