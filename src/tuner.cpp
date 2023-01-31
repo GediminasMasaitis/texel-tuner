@@ -82,7 +82,7 @@ static void print_elapsed(high_resolution_clock::time_point start)
 {
     const auto now = high_resolution_clock::now();
     const auto elapsed = now - start;
-    const auto elapsed_seconds = std::chrono::duration_cast<seconds>(elapsed).count();
+    const auto elapsed_seconds = duration_cast<seconds>(elapsed).count();
     cout << "[" << elapsed_seconds << "s] ";
 }
 
@@ -289,9 +289,8 @@ void Tuner::run(const std::vector<DataSource>& sources)
     }
     cout << "Data loading complete" << endl;
 
-    //cout << "Finding optimal K..." << endl;
-    //const auto K = find_optimal_k(entries, parameters);
-    const auto K = 2;
+    cout << "Finding optimal K..." << endl;
+    const auto K = find_optimal_k(thread_pool, entries, parameters);
     cout << "K = " << K << endl;
 
     const auto avg_error = get_average_error(thread_pool, entries, parameters, K);
@@ -299,9 +298,9 @@ void Tuner::run(const std::vector<DataSource>& sources)
     cout << "Initial parameters:" << endl;
     TuneEval::print_parameters(parameters);
 
+    const auto loop_start = high_resolution_clock::now();
     parameters_t momentum(parameters.size(), 0);
     parameters_t velocity(parameters.size(), 0);
-
     for (int epoch = 1; epoch < 1000000; epoch++)
     {
         parameters_t gradient(parameters.size(), 0);
@@ -320,9 +319,11 @@ void Tuner::run(const std::vector<DataSource>& sources)
 
         if (epoch % 50 == 0)
         {
+            const auto elapsed_ms = duration_cast<milliseconds>(high_resolution_clock::now() - loop_start).count();
+            const auto epochs_per_second = epoch * 1000.0 / elapsed_ms;
             const tune_t error = get_average_error(thread_pool, entries, parameters, K);
             print_elapsed(start);
-            cout << "Epoch " << epoch << ", error " << error << endl;
+            cout << "Epoch " << epoch << " (" << epochs_per_second << " eps), error " << error << endl;
             TuneEval::print_parameters(parameters);
         }
     }
