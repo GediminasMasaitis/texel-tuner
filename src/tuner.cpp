@@ -1,6 +1,7 @@
 #include "tuner.h"
 #include "base.h"
 #include "config.h"
+#include "threadpool.h"
 
 #include <array>
 #include <chrono>
@@ -160,16 +161,12 @@ static tune_t sigmoid(tune_t K, tune_t eval)
     return 1.0 / (1.0 + exp(-K * eval / 400.0));
 }
 
-static tune_t get_average_error(const vector<Entry>& entries, const parameters_t& parameters, double K)
+static tune_t get_average_error(ThreadPool& thread_pool, const vector<Entry>& entries, const parameters_t& parameters, double K)
 {
-    vector<thread> threads;
-    threads.reserve(thread_count);
     array<tune_t, thread_count> thread_errors;
-    
     for(int thread_id = 0; thread_id < thread_count; thread_id++)
     {
-        thread_errors[thread_id] = 0;
-        threads.emplace_back([thread_id, &thread_errors, &entries, &parameters, K]()
+        thread_pool.enqueue([thread_id, &thread_errors, &entries, &parameters, K]()
         {
             const auto entries_per_thread = entries.size() / thread_count;
             const auto start = static_cast<int>(thread_id * entries_per_thread);
@@ -184,15 +181,15 @@ static tune_t get_average_error(const vector<Entry>& entries, const parameters_t
                 const auto entry_error = pow(diff, 2);
                 error += entry_error;
             }
-            thread_errors[thread_id] += error;
+            thread_errors[thread_id] = error;
         });
     }
 
+    thread_pool.wait_for_completion();
 
     tune_t total_error = 0;
     for (int thread_id = 0; thread_id < thread_count; thread_id++)
     {
-        threads[thread_id].join();
         for (auto parameter_index = 0; parameter_index < parameters.size(); parameter_index++)
         {
             total_error += thread_errors[thread_id];
@@ -203,7 +200,7 @@ static tune_t get_average_error(const vector<Entry>& entries, const parameters_t
     return avg_error;
 }
 
-static double find_optimal_k(const vector<Entry>& entries, const parameters_t& parameters)
+static double find_optimal_k(ThreadPool& thread_pool, const vector<Entry>& entries, const parameters_t& parameters)
 {
     constexpr tune_t rate = 10;
     constexpr tune_t delta = 1e-5;
@@ -212,8 +209,8 @@ static double find_optimal_k(const vector<Entry>& entries, const parameters_t& p
     tune_t deviation = 1;
 
     while (fabs(deviation) > deviation_goal) {
-        const tune_t up = get_average_error(entries, parameters, K + delta);
-        const tune_t down = get_average_error(entries, parameters, K - delta);
+        const tune_t up = get_average_error(thread_pool, entries, parameters, K + delta);
+        const tune_t down = get_average_error(thread_pool, entries, parameters, K - delta);
         deviation = (up - down) / (2 * delta);
         K -= deviation * rate;
     }
@@ -233,17 +230,12 @@ static void update_single_gradient(parameters_t& gradient, const Entry& entry, c
     }
 }
 
-static void compute_gradient(parameters_t& gradient, const vector<Entry>& entries, const parameters_t& params, double K)
+static void compute_gradient(ThreadPool& thread_pool, parameters_t& gradient, const vector<Entry>& entries, const parameters_t& params, double K)
 {
-    vector<thread> threads;
-    threads.reserve(thread_count);
-    
     array<parameters_t, thread_count> thread_gradients;
-
-    
     for(int thread_id = 0; thread_id < thread_count; thread_id++)
     {
-        threads.emplace_back([thread_id, &thread_gradients, &entries, &params, K]()
+        thread_pool.enqueue([thread_id, &thread_gradients, &entries, &params, K]()
         {
             const auto entries_per_thread = entries.size() / thread_count;
             const auto start = static_cast<int>(thread_id * entries_per_thread);
@@ -258,9 +250,10 @@ static void compute_gradient(parameters_t& gradient, const vector<Entry>& entrie
         });
     }
 
+    thread_pool.wait_for_completion();
+
     for (int thread_id = 0; thread_id < thread_count; thread_id++)
     {
-        threads[thread_id].join();
         for(auto parameter_index = 0; parameter_index < params.size(); parameter_index++)
         {
             gradient[parameter_index] += thread_gradients[thread_id][parameter_index];
@@ -273,6 +266,11 @@ void Tuner::run(const std::vector<DataSource>& sources)
     cout << "Starting tuning" << endl << endl;
     const auto start = high_resolution_clock::now();
 
+    cout << "Starting thread pool..." << endl;
+    ThreadPool thread_pool;
+    thread_pool.start(thread_count);
+
+    cout << "Getting initial parameters..." << endl;
     auto parameters = TuneEval::get_initial_parameters();
 
     // Debug entry
@@ -296,7 +294,7 @@ void Tuner::run(const std::vector<DataSource>& sources)
     const auto K = 2;
     cout << "K = " << K << endl;
 
-    const auto avg_error = get_average_error(entries, parameters, K);
+    const auto avg_error = get_average_error(thread_pool, entries, parameters, K);
     cout << "Initial error = " << avg_error << endl;
     cout << "Initial parameters:" << endl;
     TuneEval::print_parameters(parameters);
@@ -307,7 +305,7 @@ void Tuner::run(const std::vector<DataSource>& sources)
     for (int epoch = 1; epoch < 1000000; epoch++)
     {
         parameters_t gradient(parameters.size(), 0);
-        compute_gradient(gradient, entries, parameters, K);
+        compute_gradient(thread_pool, gradient, entries, parameters, K);
 
         constexpr tune_t learning_rate = 0.03;
         constexpr tune_t beta1 = 0.9;
@@ -322,7 +320,7 @@ void Tuner::run(const std::vector<DataSource>& sources)
 
         if (epoch % 50 == 0)
         {
-            const tune_t error = get_average_error(entries, parameters, K);
+            const tune_t error = get_average_error(thread_pool, entries, parameters, K);
             print_elapsed(start);
             cout << "Epoch " << epoch << ", error " << error << endl;
             TuneEval::print_parameters(parameters);
