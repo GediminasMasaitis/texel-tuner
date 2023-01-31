@@ -163,26 +163,28 @@ static tune_t sigmoid(tune_t K, tune_t eval)
 static tune_t get_average_error(const vector<Entry>& entries, const parameters_t& parameters, double K)
 {
     vector<thread> threads;
-    const auto entries_per_thread = entries.size() / thread_count;
+    threads.reserve(thread_count);
     array<tune_t, thread_count> thread_errors;
-
+    
     for(int thread_id = 0; thread_id < thread_count; thread_id++)
     {
         thread_errors[thread_id] = 0;
-        auto start = static_cast<int>(thread_id * entries_per_thread);
-        auto end = static_cast<int>((thread_id + 1) * entries_per_thread - 1);
-        auto& thread_error = thread_errors[thread_id];
-        threads.emplace_back([start, end, &thread_error, &entries, &parameters, K]()
+        threads.emplace_back([thread_id, &thread_errors, &entries, &parameters, K]()
         {
+            const auto entries_per_thread = entries.size() / thread_count;
+            const auto start = static_cast<int>(thread_id * entries_per_thread);
+            const auto end = static_cast<int>((thread_id + 1) * entries_per_thread - 1);
+            tune_t error = 0;
             for (int i = start; i < end; i++)
             {
                 const auto& entry = entries[i];
                 const auto eval = linear_eval(entry, parameters);
                 const auto sig = sigmoid(K, eval);
                 const auto diff = entry.wdl - sig;
-                const auto error = pow(diff, 2);
-                thread_error += error;
+                const auto entry_error = pow(diff, 2);
+                error += entry_error;
             }
+            thread_errors[thread_id] += error;
         });
     }
 
@@ -234,22 +236,25 @@ static void update_single_gradient(parameters_t& gradient, const Entry& entry, c
 static void compute_gradient(parameters_t& gradient, const vector<Entry>& entries, const parameters_t& params, double K)
 {
     vector<thread> threads;
-    const auto entries_per_thread = entries.size() / thread_count;
+    threads.reserve(thread_count);
+    
     array<parameters_t, thread_count> thread_gradients;
 
+    
     for(int thread_id = 0; thread_id < thread_count; thread_id++)
     {
-        thread_gradients[thread_id] = parameters_t(params.size(), 0);
-        auto start = static_cast<int>(thread_id * entries_per_thread);
-        auto end = static_cast<int>((thread_id + 1) * entries_per_thread - 1);
-        auto& thread_gradient = thread_gradients[thread_id];
-        threads.emplace_back([start, end, &thread_gradient, &entries, &params, K]()
+        threads.emplace_back([thread_id, &thread_gradients, &entries, &params, K]()
         {
+            const auto entries_per_thread = entries.size() / thread_count;
+            const auto start = static_cast<int>(thread_id * entries_per_thread);
+            const auto end = static_cast<int>((thread_id + 1) * entries_per_thread - 1);
+            parameters_t gradient = parameters_t(params.size(), 0);
             for (int i = start; i < end; i++)
             {
                 const auto& entry = entries[i];
-                update_single_gradient(thread_gradient, entry, params, K);
+                update_single_gradient(gradient, entry, params, K);
             }
+            thread_gradients[thread_id] = gradient;
         });
     }
 
