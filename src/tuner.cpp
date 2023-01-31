@@ -273,16 +273,17 @@ void Tuner::run(const std::vector<DataSource>& sources)
     cout << "Getting initial parameters..." << endl;
     auto parameters = TuneEval::get_initial_parameters();
 
-    // Debug entry
-    const string debug_fen = "rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQK1NR w KQkq - 0 1; 1.0";
-    Entry debug_entry;
-    debug_entry.wdl = get_fen_wdl(debug_fen);
-    debug_entry.white_to_move = get_fen_color_to_move(debug_fen);
-    get_coefficient_entries(debug_fen, debug_entry.coefficients);
-    debug_entry.initial_eval = linear_eval(debug_entry, parameters);
-
     vector<Entry> entries;
-    entries.push_back(debug_entry);
+
+    // Debug entry
+    //const string debug_fen = "rnb1kbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQK1NR w KQkq - 0 1; 1.0";
+    //Entry debug_entry;
+    //debug_entry.wdl = get_fen_wdl(debug_fen);
+    //debug_entry.white_to_move = get_fen_color_to_move(debug_fen);
+    //get_coefficient_entries(debug_fen, debug_entry.coefficients);
+    //debug_entry.initial_eval = linear_eval(debug_entry, parameters);
+    //entries.push_back(debug_entry);
+
     for (const auto& source : sources)
     {
         load_fens(source, parameters, start, entries);
@@ -299,6 +300,7 @@ void Tuner::run(const std::vector<DataSource>& sources)
     TuneEval::print_parameters(parameters);
 
     const auto loop_start = high_resolution_clock::now();
+    tune_t learning_rate = 0.03;
     parameters_t momentum(parameters.size(), 0);
     parameters_t velocity(parameters.size(), 0);
     for (int epoch = 1; epoch < 1000000; epoch++)
@@ -306,25 +308,31 @@ void Tuner::run(const std::vector<DataSource>& sources)
         parameters_t gradient(parameters.size(), 0);
         compute_gradient(thread_pool, gradient, entries, parameters, K);
 
-        constexpr tune_t learning_rate = 0.03;
         constexpr tune_t beta1 = 0.9;
         constexpr tune_t beta2 = 0.999;
 
-        for (int i = 1; i < parameters.size(); i++) {
+        for (int i = 0; i < parameters.size(); i++) {
             const tune_t grad = -K / 400.0 * gradient[i] / static_cast<tune_t>(entries.size());
             momentum[i] = beta1 * momentum[i] + (1 - beta1) * grad;
             velocity[i] = beta2 * velocity[i] + (1 - beta2) * pow(grad, 2);
             parameters[i] -= learning_rate * momentum[i] / (1e-8 + sqrt(velocity[i]));
         }
 
-        if (epoch % 50 == 0)
+        if (epoch % 100 == 0)
         {
             const auto elapsed_ms = duration_cast<milliseconds>(high_resolution_clock::now() - loop_start).count();
             const auto epochs_per_second = epoch * 1000.0 / elapsed_ms;
             const tune_t error = get_average_error(thread_pool, entries, parameters, K);
             print_elapsed(start);
-            cout << "Epoch " << epoch << " (" << epochs_per_second << " eps), error " << error << endl;
+            cout << "Epoch " << epoch << " (" << epochs_per_second << " eps), error " << error << ", LR " << learning_rate << endl;
             TuneEval::print_parameters(parameters);
+        }
+
+        constexpr int lr_drop_interval = 10000;
+        constexpr int lr_drop_ratio = 0.3;
+        if(epoch == lr_drop_interval)
+        {
+            learning_rate *= lr_drop_ratio;
         }
     }
 }
