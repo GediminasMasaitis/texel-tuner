@@ -204,7 +204,9 @@ static void load_fens(const DataSource& source, const parameters_t& parameters, 
         entry.white_to_move = get_fen_color_to_move(fen);
         get_coefficient_entries(fen, entry.coefficients);
         entry.initial_eval = linear_eval(entry, parameters);
+#if TAPERED
         entry.phase = get_phase(fen);
+#endif
         entries.push_back(entry);
         
         position_count++;
