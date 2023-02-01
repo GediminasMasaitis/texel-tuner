@@ -4,4 +4,4 @@ project(tuner)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(tuner "main.cpp" "tuner.cpp" "engines/toy.cpp" "threadpool.cpp")
+add_executable(tuner "main.cpp" "tuner.cpp" "threadpool.cpp" "engines/toy.cpp" "engines/toy_tapered.cpp")

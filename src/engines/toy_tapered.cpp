@@ -1,6 +1,5 @@
-#include "toy.h"
+#include "toy_tapered.h"
 #include "toy_base.h"
-#include "../base.h"
 
 #include <array>
 #include <iostream>
@@ -8,7 +7,6 @@
 #include <stdexcept>
 
 #if TAPERED
-#else
 
 using namespace std;
 using namespace Toy;
@@ -19,29 +17,29 @@ struct Trace
     int32_t bishop_pair[2]{};
 };
 
-constexpr std::array<int32_t, 6> material = { 100, 300, 300, 500, 900 };
-constexpr int32_t bishop_pair = 25;
+constexpr std::array<int32_t, 6> material = { S(100, 100), S(300, 300), S(300, 300), S(500, 500), S(900, 900) };
+constexpr int32_t bishop_pair = S(25, 25);
 
 static Trace trace_evaluate(const Position& position)
 {
     Trace trace;
     std::array<int, 2> bishop_counts{};
 
-    for(int i = 0; i < 64; i++)
+    for (int i = 0; i < 64; i++)
     {
         auto piece = position.pieces[i];
 
-        if(piece == Pieces::None)
+        if (piece == Pieces::None)
         {
             continue;
         }
 
-        if(piece < Pieces::BlackPawn)
+        if (piece < Pieces::BlackPawn)
         {
             const int materialIndex = static_cast<int>(piece) - static_cast<int>(Pieces::WhitePawn);
             trace.material[materialIndex][0]++;
 
-            if(piece == Pieces::WhiteBishop)
+            if (piece == Pieces::WhiteBishop)
             {
                 bishop_counts[0]++;
             }
@@ -58,7 +56,7 @@ static Trace trace_evaluate(const Position& position)
         }
     }
 
-    for(int color = 0; color < 2; color++)
+    for (int color = 0; color < 2; color++)
     {
         trace.bishop_pair[color] += bishop_counts[color] == 2;
     }
@@ -74,7 +72,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     return coefficients;
 }
 
-parameters_t ToyEval::get_initial_parameters()
+parameters_t ToyEvalTapered::get_initial_parameters()
 {
     parameters_t parameters;
     get_initial_parameter_array(parameters, material, material.size());
@@ -82,7 +80,7 @@ parameters_t ToyEval::get_initial_parameters()
     return parameters;
 }
 
-coefficients_t ToyEval::get_fen_coefficients(const std::string& fen)
+coefficients_t ToyEvalTapered::get_fen_coefficients(const std::string& fen)
 {
     Position position;
     parse_fen(fen, position);
@@ -91,9 +89,16 @@ coefficients_t ToyEval::get_fen_coefficients(const std::string& fen)
     return coefficients;
 }
 
+static void print_parameter(std::stringstream& ss, const pair_t parameter)
+{
+    ss << "S(" << parameter[static_cast<int32_t>(PhaseStages::Midgame)] << ", " << parameter[static_cast<int32_t>(PhaseStages::Endgame)] << ")";
+}
+
 static void print_single(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name)
 {
-    ss << "constexpr int " << name << " = " << parameters[index] << ";" << endl;
+    ss << "constexpr int " << name << " = ";
+    print_parameter(ss, parameters[index]);
+    ss << ";" << endl;
     index++;
 }
 
@@ -102,7 +107,7 @@ static void print_array(std::stringstream& ss, const parameters_t& parameters, i
     ss << "constexpr int " << name << "[] = {";
     for (auto i = 0; i < count; i++)
     {
-        ss << parameters[i];
+        print_parameter(ss, parameters[i]);
         index++;
 
         if (i != count - 1)
@@ -113,7 +118,7 @@ static void print_array(std::stringstream& ss, const parameters_t& parameters, i
     ss << "};" << endl;
 }
 
-void ToyEval::print_parameters(const parameters_t& parameters)
+void ToyEvalTapered::print_parameters(const parameters_t& parameters)
 {
     int index = 0;
     stringstream ss;

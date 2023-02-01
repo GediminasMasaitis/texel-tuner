@@ -3,8 +3,10 @@
 
 #include<cstdint>
 #include "engines/toy.h"
+#include "engines/toy_tapered.h"
 
-using TuneEval = Toy::ToyEval;
+#define TAPERED 1
+using TuneEval = Toy::ToyEvalTapered;
 constexpr int32_t thread_count = 12;
 
 #endif // !CONFIG_H

@@ -1,5 +1,5 @@
-#ifndef TOY_H
-#define TOY_H 1
+#ifndef TOY_TAPERED_H
+#define TOY_TAPERED_H 1
 
 #include "../base.h"
 
@@ -7,11 +7,9 @@
 #include <vector>
 
 #if TAPERED
-#else
-
 namespace Toy
 {
-    class ToyEval
+    class ToyEvalTapered
     {
     public:
         static parameters_t get_initial_parameters();
@@ -19,6 +17,6 @@ namespace Toy
         static void print_parameters(const parameters_t& parameters);
     };
 }
-
 #endif
-#endif // !TOY_H
+
+#endif // !TOY_TAPERED_H

@@ -33,6 +33,9 @@ struct Entry
     tune_t wdl;
     bool white_to_move;
     tune_t initial_eval;
+#if TAPERED
+    int32_t phase;
+#endif
 };
 
 static const array<WdlMarker, 6> markers
@@ -104,10 +107,21 @@ static void get_coefficient_entries(const string& fen, vector<CoefficientEntry>&
 static tune_t linear_eval(const Entry& entry, const parameters_t& parameters)
 {
     tune_t score = 0;
+#if TAPERED
+    tune_t midgame = 0;
+    tune_t endgame = 0;
+    for (const auto& coefficient : entry.coefficients)
+    {
+        midgame += coefficient.value * parameters[coefficient.index][static_cast<int32_t>(PhaseStages::Midgame)];
+        endgame += coefficient.value * parameters[coefficient.index][static_cast<int32_t>(PhaseStages::Endgame)];
+    }
+    score = (midgame * entry.phase + endgame * (24 - entry.phase)) / 24;
+#else
     for (const auto& coefficient : entry.coefficients)
     {
         score += coefficient.value * parameters[coefficient.index];
     }
+#endif
 
     //if(!entry.white_to_move)
     //{
@@ -115,6 +129,54 @@ static tune_t linear_eval(const Entry& entry, const parameters_t& parameters)
     //}
 
     return score;
+}
+
+static int32_t get_phase(const string& fen)
+{
+    int32_t phase = 0;
+    auto stop = false;
+    for(const char ch : fen)
+    {
+        if(stop)
+        {
+            break;
+        }
+
+        switch (ch)
+        {
+        case 'n':
+        case 'N':
+            phase += 1;
+            break;
+        case 'b':
+        case 'B':
+            phase += 1;
+            break;
+        case 'r':
+        case 'R':
+            phase += 2;
+            break;
+        case 'q':
+        case 'Q':
+            phase += 4;
+            break;
+        case 'p':
+        case '/':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+            break;
+        case ' ':
+            stop = true;
+            break;
+        }
+    }
+    return phase;
 }
 
 static void load_fens(const DataSource& source, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries)
@@ -142,6 +204,7 @@ static void load_fens(const DataSource& source, const parameters_t& parameters, 
         entry.white_to_move = get_fen_color_to_move(fen);
         get_coefficient_entries(fen, entry.coefficients);
         entry.initial_eval = linear_eval(entry, parameters);
+        entry.phase = get_phase(fen);
         entries.push_back(entry);
         
         position_count++;
@@ -224,9 +287,19 @@ static void update_single_gradient(parameters_t& gradient, const Entry& entry, c
     const tune_t sig = sigmoid(K, eval);
     const tune_t res = (entry.wdl - sig) * sig * (1 - sig);
 
+#if TAPERED
+    const auto mg_base = res * (entry.phase / 24.0);
+    const auto eg_base = res * (1 - mg_base);
+#endif
+
     for (const auto& coefficient : entry.coefficients)
     {
+#if TAPERED
+        gradient[coefficient.index][static_cast<int32_t>(PhaseStages::Midgame)] += mg_base * coefficient.value;
+        gradient[coefficient.index][static_cast<int32_t>(PhaseStages::Endgame)] += eg_base * coefficient.value;
+#else
         gradient[coefficient.index] += res * coefficient.value;
+#endif
     }
 }
 
@@ -240,7 +313,11 @@ static void compute_gradient(ThreadPool& thread_pool, parameters_t& gradient, co
             const auto entries_per_thread = entries.size() / thread_count;
             const auto start = static_cast<int>(thread_id * entries_per_thread);
             const auto end = static_cast<int>((thread_id + 1) * entries_per_thread - 1);
+#if TAPERED
+            parameters_t gradient = parameters_t(params.size(), pair_t{});
+#else
             parameters_t gradient = parameters_t(params.size(), 0);
+#endif
             for (int i = start; i < end; i++)
             {
                 const auto& entry = entries[i];
@@ -256,7 +333,12 @@ static void compute_gradient(ThreadPool& thread_pool, parameters_t& gradient, co
     {
         for(auto parameter_index = 0; parameter_index < params.size(); parameter_index++)
         {
+#if TAPERED
+            gradient[parameter_index][static_cast<int32_t>(PhaseStages::Midgame)] += thread_gradients[thread_id][parameter_index][static_cast<int32_t>(PhaseStages::Midgame)];
+            gradient[parameter_index][static_cast<int32_t>(PhaseStages::Endgame)] += thread_gradients[thread_id][parameter_index][static_cast<int32_t>(PhaseStages::Endgame)];
+#else
             gradient[parameter_index] += thread_gradients[thread_id][parameter_index];
+#endif
         }
     }
 }
@@ -301,21 +383,42 @@ void Tuner::run(const std::vector<DataSource>& sources)
 
     const auto loop_start = high_resolution_clock::now();
     tune_t learning_rate = 0.03;
+#if TAPERED
+    parameters_t momentum(parameters.size(), pair_t{});
+    parameters_t velocity(parameters.size(), pair_t{});
+#else
     parameters_t momentum(parameters.size(), 0);
     parameters_t velocity(parameters.size(), 0);
+#endif
     for (int epoch = 1; epoch < 1000000; epoch++)
     {
+#if TAPERED
+        parameters_t gradient(parameters.size(), pair_t{});
+#else
         parameters_t gradient(parameters.size(), 0);
+#endif
+        
         compute_gradient(thread_pool, gradient, entries, parameters, K);
 
         constexpr tune_t beta1 = 0.9;
         constexpr tune_t beta2 = 0.999;
 
-        for (int i = 0; i < parameters.size(); i++) {
-            const tune_t grad = -K / 400.0 * gradient[i] / static_cast<tune_t>(entries.size());
-            momentum[i] = beta1 * momentum[i] + (1 - beta1) * grad;
-            velocity[i] = beta2 * velocity[i] + (1 - beta2) * pow(grad, 2);
-            parameters[i] -= learning_rate * momentum[i] / (1e-8 + sqrt(velocity[i]));
+        for (int parameter_index = 0; parameter_index < parameters.size(); parameter_index++) {
+#if TAPERED
+            for(int phase_stage = 0; phase_stage < 2; phase_stage++)
+            {
+                const tune_t grad = -K / 400.0 * gradient[parameter_index][phase_stage] / static_cast<tune_t>(entries.size());
+                momentum[parameter_index][phase_stage] = beta1 * momentum[parameter_index][phase_stage] + (1 - beta1) * grad;
+                velocity[parameter_index][phase_stage] = beta2 * velocity[parameter_index][phase_stage] + (1 - beta2) * pow(grad, 2);
+                parameters[parameter_index][phase_stage] -= learning_rate * momentum[parameter_index][phase_stage] / (1e-8 + sqrt(velocity[parameter_index][phase_stage]));
+            }
+#else
+            const tune_t grad = -K / 400.0 * gradient[parameter_index] / static_cast<tune_t>(entries.size());
+            momentum[parameter_index] = beta1 * momentum[parameter_index] + (1 - beta1) * grad;
+            velocity[parameter_index] = beta2 * velocity[parameter_index] + (1 - beta2) * pow(grad, 2);
+            parameters[parameter_index] -= learning_rate * momentum[parameter_index] / (1e-8 + sqrt(velocity[parameter_index]));
+#endif
+            
         }
 
         if (epoch % 100 == 0)
