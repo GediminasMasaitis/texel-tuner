@@ -223,10 +223,10 @@ static void load_fens(const DataSource& source, const parameters_t& parameters, 
 
 static tune_t sigmoid(tune_t K, tune_t eval)
 {
-    return 1.0 / (1.0 + exp(-K * eval / 400.0));
+    return static_cast<tune_t>(1) / (static_cast<tune_t>(1) + exp(-K * eval / static_cast<tune_t>(400)));
 }
 
-static tune_t get_average_error(ThreadPool& thread_pool, const vector<Entry>& entries, const parameters_t& parameters, double K)
+static tune_t get_average_error(ThreadPool& thread_pool, const vector<Entry>& entries, const parameters_t& parameters, tune_t K)
 {
     array<tune_t, thread_count> thread_errors;
     for(int thread_id = 0; thread_id < thread_count; thread_id++)
@@ -265,7 +265,7 @@ static tune_t get_average_error(ThreadPool& thread_pool, const vector<Entry>& en
     return avg_error;
 }
 
-static double find_optimal_k(ThreadPool& thread_pool, const vector<Entry>& entries, const parameters_t& parameters)
+static tune_t find_optimal_k(ThreadPool& thread_pool, const vector<Entry>& entries, const parameters_t& parameters)
 {
     constexpr tune_t rate = 10;
     constexpr tune_t delta = 1e-5;
@@ -273,7 +273,8 @@ static double find_optimal_k(ThreadPool& thread_pool, const vector<Entry>& entri
     tune_t K = 2;
     tune_t deviation = 1;
 
-    while (fabs(deviation) > deviation_goal) {
+    while (fabs(deviation) > deviation_goal)
+    {
         const tune_t up = get_average_error(thread_pool, entries, parameters, K + delta);
         const tune_t down = get_average_error(thread_pool, entries, parameters, K - delta);
         deviation = (up - down) / (2 * delta);
@@ -283,14 +284,14 @@ static double find_optimal_k(ThreadPool& thread_pool, const vector<Entry>& entri
     return K;
 }
 
-static void update_single_gradient(parameters_t& gradient, const Entry& entry, const parameters_t& params, double K) {
+static void update_single_gradient(parameters_t& gradient, const Entry& entry, const parameters_t& params, tune_t K) {
 
     const tune_t eval = linear_eval(entry, params);
     const tune_t sig = sigmoid(K, eval);
     const tune_t res = (entry.wdl - sig) * sig * (1 - sig);
 
 #if TAPERED
-    const auto mg_base = res * (entry.phase / 24.0);
+    const auto mg_base = res * (entry.phase / static_cast<tune_t>(24));
     const auto eg_base = res * (1 - mg_base);
 #endif
 
@@ -305,7 +306,7 @@ static void update_single_gradient(parameters_t& gradient, const Entry& entry, c
     }
 }
 
-static void compute_gradient(ThreadPool& thread_pool, parameters_t& gradient, const vector<Entry>& entries, const parameters_t& params, double K)
+static void compute_gradient(ThreadPool& thread_pool, parameters_t& gradient, const vector<Entry>& entries, const parameters_t& params, tune_t K)
 {
     array<parameters_t, thread_count> thread_gradients;
     for(int thread_id = 0; thread_id < thread_count; thread_id++)
@@ -409,10 +410,10 @@ void Tuner::run(const std::vector<DataSource>& sources)
 #if TAPERED
             for(int phase_stage = 0; phase_stage < 2; phase_stage++)
             {
-                const tune_t grad = -K / 400.0 * gradient[parameter_index][phase_stage] / static_cast<tune_t>(entries.size());
+                const tune_t grad = -K / static_cast<tune_t>(400) * gradient[parameter_index][phase_stage] / static_cast<tune_t>(entries.size());
                 momentum[parameter_index][phase_stage] = beta1 * momentum[parameter_index][phase_stage] + (1 - beta1) * grad;
                 velocity[parameter_index][phase_stage] = beta2 * velocity[parameter_index][phase_stage] + (1 - beta2) * pow(grad, 2);
-                parameters[parameter_index][phase_stage] -= learning_rate * momentum[parameter_index][phase_stage] / (1e-8 + sqrt(velocity[parameter_index][phase_stage]));
+                parameters[parameter_index][phase_stage] -= learning_rate * momentum[parameter_index][phase_stage] / (static_cast<tune_t>(1e-8) + sqrt(velocity[parameter_index][phase_stage]));
             }
 #else
             const tune_t grad = -K / 400.0 * gradient[parameter_index] / static_cast<tune_t>(entries.size());
@@ -434,8 +435,8 @@ void Tuner::run(const std::vector<DataSource>& sources)
         }
 
         constexpr int lr_drop_interval = 10000;
-        constexpr int lr_drop_ratio = 1;
-        if(epoch == lr_drop_interval)
+        constexpr tune_t lr_drop_ratio = 1;
+        if(epoch % lr_drop_interval == 0)
         {
             learning_rate *= lr_drop_ratio;
         }
