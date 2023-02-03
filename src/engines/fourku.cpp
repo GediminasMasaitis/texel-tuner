@@ -391,15 +391,16 @@ static void print_parameter(std::stringstream& ss, const pair_t parameter)
 
 static void print_single(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name)
 {
-    ss << "constexpr int " << name << " = ";
+    ss << "const int " << name << " = ";
     print_parameter(ss, parameters[index]);
+    index++;
 
     ss << ";" << endl;
 }
 
 static void print_array(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name, int count)
 {
-    ss << "constexpr int " << name << "[] = {";
+    ss << "const int " << name << "[] = {";
     for (auto i = 0; i < count; i++)
     {
         print_parameter(ss, parameters[index]);
