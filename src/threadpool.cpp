@@ -51,7 +51,7 @@ void ThreadPool::stop()
 bool ThreadPool::is_idle()
 {
     unique_lock<mutex> lock(queue_mutex);
-    return !jobs.empty() || running_job_count > 0;
+    return jobs.empty() && running_job_count == 0;
 }
 
 void ThreadPool::wait_for_completion()

@@ -107,7 +107,7 @@ static void print_array(std::stringstream& ss, const parameters_t& parameters, i
     ss << "constexpr int " << name << "[] = {";
     for (auto i = 0; i < count; i++)
     {
-        print_parameter(ss, parameters[i]);
+        print_parameter(ss, parameters[index]);
         index++;
 
         if (i != count - 1)

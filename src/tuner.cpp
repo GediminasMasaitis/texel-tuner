@@ -89,9 +89,15 @@ static void print_elapsed(high_resolution_clock::time_point start)
     cout << "[" << elapsed_seconds << "s] ";
 }
 
-static void get_coefficient_entries(const string& fen, vector<CoefficientEntry>& coefficient_entries)
+static void get_coefficient_entries(const string& fen, vector<CoefficientEntry>& coefficient_entries, int32_t parameter_count)
 {
     const auto coefficients = TuneEval::get_fen_coefficients(fen);
+
+    if(coefficients.size() != parameter_count)
+    {
+        throw runtime_error("Parameter count mismatch");
+    }
+
     for (int16_t i = 0; i < coefficients.size(); i++)
     {
         if (coefficients[i] == 0)
@@ -107,7 +113,7 @@ static void get_coefficient_entries(const string& fen, vector<CoefficientEntry>&
 static tune_t linear_eval(const Entry& entry, const parameters_t& parameters)
 {
     tune_t score = 0;
-#if TAPERED
+#if TAPERED 
     tune_t midgame = 0;
     tune_t endgame = 0;
     for (const auto& coefficient : entry.coefficients)
@@ -202,11 +208,12 @@ static void load_fens(const DataSource& source, const parameters_t& parameters, 
         Entry entry;
         entry.wdl = get_fen_wdl(fen);
         entry.white_to_move = get_fen_color_to_move(fen);
-        get_coefficient_entries(fen, entry.coefficients);
-        entry.initial_eval = linear_eval(entry, parameters);
+        get_coefficient_entries(fen, entry.coefficients, parameters.size());
 #if TAPERED
         entry.phase = get_phase(fen);
 #endif
+        entry.initial_eval = linear_eval(entry, parameters);
+
         entries.push_back(entry);
         
         position_count++;
@@ -255,10 +262,7 @@ static tune_t get_average_error(ThreadPool& thread_pool, const vector<Entry>& en
     tune_t total_error = 0;
     for (int thread_id = 0; thread_id < thread_count; thread_id++)
     {
-        for (auto parameter_index = 0; parameter_index < parameters.size(); parameter_index++)
-        {
-            total_error += thread_errors[thread_id];
-        }
+        total_error += thread_errors[thread_id];
     }
 
     const tune_t avg_error = total_error / static_cast<tune_t>(entries.size());
@@ -278,6 +282,7 @@ static tune_t find_optimal_k(ThreadPool& thread_pool, const vector<Entry>& entri
         const tune_t up = get_average_error(thread_pool, entries, parameters, K + delta);
         const tune_t down = get_average_error(thread_pool, entries, parameters, K - delta);
         deviation = (up - down) / (2 * delta);
+        cout << "Current K: " << K << "up: " << up << ", down: " << down << ", deviation: " << deviation << endl;
         K -= deviation * rate;
     }
 
@@ -358,6 +363,9 @@ void Tuner::run(const std::vector<DataSource>& sources)
     cout << "Getting initial parameters..." << endl;
     auto parameters = TuneEval::get_initial_parameters();
 
+    cout << "Initial parameters:" << endl;
+    TuneEval::print_parameters(parameters);
+
     vector<Entry> entries;
 
     // Debug entry
@@ -375,14 +383,16 @@ void Tuner::run(const std::vector<DataSource>& sources)
     }
     cout << "Data loading complete" << endl;
 
-    cout << "Finding optimal K..." << endl;
-    const auto K = find_optimal_k(thread_pool, entries, parameters);
+    cout << "Initial parameters:" << endl;
+    TuneEval::print_parameters(parameters);
+
+    //cout << "Finding optimal K..." << endl;
+    //const auto K = find_optimal_k(thread_pool, entries, parameters);
+    const auto K = 3.7;
     cout << "K = " << K << endl;
 
     const auto avg_error = get_average_error(thread_pool, entries, parameters, K);
     cout << "Initial error = " << avg_error << endl;
-    cout << "Initial parameters:" << endl;
-    TuneEval::print_parameters(parameters);
 
     const auto loop_start = high_resolution_clock::now();
     tune_t learning_rate = 0.03;

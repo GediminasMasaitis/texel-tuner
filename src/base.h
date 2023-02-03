@@ -26,17 +26,18 @@ enum class PhaseStages
 
 constexpr int32_t S(const int32_t mg, const int32_t eg)
 {
-    return (eg << 16) + mg;
+    //return (eg << 16) + mg;
+    return static_cast<int32_t>(static_cast<uint32_t>(eg) << 16) + mg;
 }
 
 static constexpr int32_t mg_score(int32_t score)
 {
-    return static_cast<uint16_t>(score);
+    return static_cast<int16_t>(score);
 }
 
 static constexpr int32_t eg_score(int32_t score)
 {
-    return static_cast<uint16_t>((score + 0x8000) >> 16);
+    return static_cast<int16_t>((score + 0x8000) >> 16);
 }
 #endif
 
@@ -44,7 +45,9 @@ template<typename T>
 void get_initial_parameter_single(parameters_t& parameters, const T& parameter)
 {
 #if TAPERED
-    const pair_t pair = { mg_score(static_cast<int32_t>(parameter)), eg_score(static_cast<int32_t>(parameter)) };
+    const auto mg = mg_score(static_cast<int32_t>(parameter));
+    const auto eg = eg_score(static_cast<int32_t>(parameter));
+    const pair_t pair = { mg, eg };
     parameters.push_back(pair);
 #else
     parameters.push_back(static_cast<tune_t>(parameter));
@@ -57,6 +60,15 @@ void get_initial_parameter_array(parameters_t& parameters, const T& parameter, c
     for (int i = 0; i < size; i++)
     {
         get_initial_parameter_single(parameters, parameter[i]);
+    }
+}
+
+template<typename T>
+void get_initial_parameter_array_2d(parameters_t& parameters, const T& parameter, const int size1, const int size2)
+{
+    for (int i = 0; i < size1; i++)
+    {
+        get_initial_parameter_array(parameters, parameter[i], size2);
     }
 }
 
@@ -73,6 +85,15 @@ void get_coefficient_array(coefficients_t& coefficients, const T& trace, const i
     for (int i = 0; i < size; i++)
     {
         get_coefficient_single(coefficients, trace[i]);
+    }
+}
+
+template<typename T>
+void get_coefficient_array_2d(coefficients_t& coefficients, const T& trace, const int size1, const int size2)
+{
+    for (int i = 0; i < size1; i++)
+    {
+        get_coefficient_array(coefficients, trace[i], size2);
     }
 }
 
