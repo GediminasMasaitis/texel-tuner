@@ -10,5 +10,6 @@
 //using TuneEval = Toy::ToyEvalTapered;
 using TuneEval = Fourku::FourkuEval;
 constexpr int32_t thread_count = 12;
+constexpr double preferred_k = 3.7;
 
 #endif // !CONFIG_H

@@ -386,9 +386,19 @@ void Tuner::run(const std::vector<DataSource>& sources)
     cout << "Initial parameters:" << endl;
     TuneEval::print_parameters(parameters);
 
-    //cout << "Finding optimal K..." << endl;
-    //const auto K = find_optimal_k(thread_pool, entries, parameters);
-    const auto K = 3.7;
+    tune_t K;
+    if constexpr (preferred_k < 0)
+    {
+        cout << "Finding optimal K..." << endl;
+        K = find_optimal_k(thread_pool, entries, parameters);
+    }
+    else
+    {
+        cout << "Using predefined K = " << preferred_k <<  endl;
+        K = preferred_k;
+    }
+    
+    
     cout << "K = " << K << endl;
 
     const auto avg_error = get_average_error(thread_pool, entries, parameters, K);
