@@ -387,7 +387,7 @@ void Tuner::run(const std::vector<DataSource>& sources)
     TuneEval::print_parameters(parameters);
 
     tune_t K;
-    if constexpr (preferred_k < 0)
+    if constexpr (preferred_k <= 0)
     {
         cout << "Finding optimal K..." << endl;
         K = find_optimal_k(thread_pool, entries, parameters);
