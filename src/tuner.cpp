@@ -187,19 +187,25 @@ static int32_t get_phase(const string& fen)
 
 static void load_fens(const DataSource& source, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries)
 {
-    std::cout << "Loading " << source.path << std::endl;
+    cout << "Loading " << source.path << endl;
 
-    std::ifstream file(source.path);
+    ifstream file(source.path);
+    if(!file)
+    {
+        cout << "Failed to open " << source.path << endl;
+        throw runtime_error("Failed to open data source");
+    }
+
     int64_t position_count = 0;
-    std::string fen;
+    string fen;
     while (!file.eof())
     {
-        if (position_count >= source.position_limit)
+        if (source.position_limit > 0 && position_count >= source.position_limit)
         {
             break;
         }
 
-        std::getline(file, fen);
+        getline(file, fen);
         if (fen.empty())
         {
             break;
@@ -282,7 +288,7 @@ static tune_t find_optimal_k(ThreadPool& thread_pool, const vector<Entry>& entri
         const tune_t up = get_average_error(thread_pool, entries, parameters, K + delta);
         const tune_t down = get_average_error(thread_pool, entries, parameters, K - delta);
         deviation = (up - down) / (2 * delta);
-        cout << "Current K: " << K << "up: " << up << ", down: " << down << ", deviation: " << deviation << endl;
+        cout << "Current K: " << K << ", up: " << up << ", down: " << down << ", deviation: " << deviation << endl;
         K -= deviation * rate;
     }
 
