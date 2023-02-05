@@ -187,7 +187,12 @@ static int32_t get_phase(const string& fen)
 
 static void load_fens(const DataSource& source, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries)
 {
-    cout << "Loading " << source.path << endl;
+    cout << "Loading " << source.path;
+    if(source.position_limit > 0)
+    {
+        cout << " (" << source.position_limit << " positions)";
+    }
+    cout << "..." << endl;
 
     ifstream file(source.path);
     if(!file)
