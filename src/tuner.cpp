@@ -49,7 +49,7 @@ static const array<WdlMarker, 6> markers
     WdlMarker{"0-1", 0}
 };
 
-tune_t get_fen_wdl(const string& fen)
+static tune_t get_fen_wdl(const string& fen)
 {
     tune_t result;
     bool marker_found = false;
@@ -76,7 +76,7 @@ tune_t get_fen_wdl(const string& fen)
     return result;
 }   
 
-bool get_fen_color_to_move(const string& fen)
+static constexpr bool get_fen_color_to_move(const string& fen)
 {
     return fen.find('w') != std::string::npos;
 }
@@ -110,7 +110,7 @@ static void get_coefficient_entries(const string& fen, vector<CoefficientEntry>&
     }
 }
 
-static tune_t linear_eval(const Entry& entry, const parameters_t& parameters)
+static constexpr tune_t linear_eval(const Entry& entry, const parameters_t& parameters)
 {
     tune_t score = 0;
 #if TAPERED 
@@ -137,7 +137,7 @@ static tune_t linear_eval(const Entry& entry, const parameters_t& parameters)
     return score;
 }
 
-static int32_t get_phase(const string& fen)
+static constexpr int32_t get_phase(const string& fen)
 {
     int32_t phase = 0;
     auto stop = false;
@@ -185,6 +185,47 @@ static int32_t get_phase(const string& fen)
     return phase;
 }
 
+static void print_statistics(const parameters_t& parameters, const vector<Entry>& entries)
+{
+    array<size_t, 2> wins{};
+    array<size_t, 2> draws{};
+    array<size_t, 2> losses{};
+    array<size_t, 2> total{};
+    array<tune_t, 2> wdls{};
+
+    for(auto& entry : entries)
+    {
+        if(entry.wdl == 1)
+        {
+            wins[entry.white_to_move]++;
+        }
+        else if(entry.wdl == 0.5)
+        {
+            draws[entry.white_to_move]++;
+        }
+        else if (entry.wdl == 0.0)
+        {
+            losses[entry.white_to_move]++;
+        }
+        total[entry.white_to_move]++;
+        wdls[entry.white_to_move] += entry.wdl;
+    }
+
+    cout << "Dataset statistics:" << endl;
+    cout << "Total positions: " << entries.size() << endl;
+    for(int color = 1; color >= 0; color--)
+    {
+        const auto color_name = color ? "White" : "Black";
+        cout << color_name << ": " << total[color] << " (" << (total[color] * 100.0 / entries.size()) << "%)" << endl;
+        cout << color_name << " 1.0: " << wins[color] << " (" << (wins[color] * 100.0 / entries.size()) << "%)" << endl;
+        cout << color_name << " 0.5: " << draws[color] << " (" << (draws[color] * 100.0 / entries.size()) << "%)" << endl;
+        cout << color_name << " 0.0: " << losses[color] << " (" << (losses[color] * 100.0 / entries.size()) << "%)" << endl;
+        cout << color_name << " avg: " << wdls[color] / total[color] << endl;
+    }
+
+    cout << endl;
+}
+
 static void load_fens(const DataSource& source, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries)
 {
     cout << "Loading " << source.path;
@@ -219,7 +260,7 @@ static void load_fens(const DataSource& source, const parameters_t& parameters, 
         Entry entry;
         entry.wdl = get_fen_wdl(fen);
         entry.white_to_move = get_fen_color_to_move(fen);
-        get_coefficient_entries(fen, entry.coefficients, parameters.size());
+        get_coefficient_entries(fen, entry.coefficients, static_cast<int32_t>(parameters.size()));
 #if TAPERED
         entry.phase = get_phase(fen);
 #endif
@@ -239,7 +280,7 @@ static void load_fens(const DataSource& source, const parameters_t& parameters, 
     std::cout << "Loaded " << position_count << " entries from " << source.path << ", " << entries.size() << " total" << std::endl;
 }
 
-static tune_t sigmoid(tune_t K, tune_t eval)
+static tune_t sigmoid(const tune_t K, const tune_t eval)
 {
     return static_cast<tune_t>(1) / (static_cast<tune_t>(1) + exp(-K * eval / static_cast<tune_t>(400)));
 }
@@ -392,7 +433,9 @@ void Tuner::run(const std::vector<DataSource>& sources)
     {
         load_fens(source, parameters, start, entries);
     }
-    cout << "Data loading complete" << endl;
+    cout << "Data loading complete" << endl << endl;
+
+    print_statistics(parameters, entries);
 
     cout << "Initial parameters:" << endl;
     TuneEval::print_parameters(parameters);
@@ -408,8 +451,6 @@ void Tuner::run(const std::vector<DataSource>& sources)
         cout << "Using predefined K = " << preferred_k <<  endl;
         K = preferred_k;
     }
-    
-    
     cout << "K = " << K << endl;
 
     const auto avg_error = get_average_error(thread_pool, entries, parameters, K);
