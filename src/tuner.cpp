@@ -49,9 +49,9 @@ static const array<WdlMarker, 6> markers
     WdlMarker{"0-1", 0}
 };
 
-static tune_t get_fen_wdl(const string& fen)
+static tune_t get_fen_wdl(const string& fen, bool white_to_move, bool side_to_move_wdl)
 {
-    tune_t result;
+    tune_t wdl;
     bool marker_found = false;
     for (auto& marker : markers)
     {
@@ -63,7 +63,22 @@ static tune_t get_fen_wdl(const string& fen)
                 throw std::runtime_error("WDL marker already found");
             }
             marker_found = true;
-            result = marker.wdl;
+            wdl = marker.wdl;
+        }
+    }
+
+    if(!marker_found)
+    {
+        stringstream ss(fen);
+        while (!ss.eof())
+        {
+            string word;
+            ss >> word;
+            if (word.starts_with("0."))
+            {
+                wdl = stod(word);
+                marker_found = true;
+            }
         }
     }
 
@@ -73,7 +88,12 @@ static tune_t get_fen_wdl(const string& fen)
         throw std::runtime_error("WDL marker not found");
     }
 
-    return result;
+    if(!white_to_move && side_to_move_wdl)
+    {
+        wdl = 1 - wdl;
+    }
+
+    return wdl;
 }   
 
 static constexpr bool get_fen_color_to_move(const string& fen)
@@ -258,8 +278,8 @@ static void load_fens(const DataSource& source, const parameters_t& parameters, 
         }
 
         Entry entry;
-        entry.wdl = get_fen_wdl(fen);
         entry.white_to_move = get_fen_color_to_move(fen);
+        entry.wdl = get_fen_wdl(fen, entry.white_to_move, source.side_to_move_wdl);
         get_coefficient_entries(fen, entry.coefficients, static_cast<int32_t>(parameters.size()));
 #if TAPERED
         entry.phase = get_phase(fen);
@@ -457,7 +477,7 @@ void Tuner::run(const std::vector<DataSource>& sources)
     cout << "Initial error = " << avg_error << endl;
 
     const auto loop_start = high_resolution_clock::now();
-    tune_t learning_rate = 0.03;
+    tune_t learning_rate = 0.3;
 #if TAPERED
     parameters_t momentum(parameters.size(), pair_t{});
     parameters_t velocity(parameters.size(), pair_t{});
