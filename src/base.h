@@ -17,6 +17,12 @@ using parameters_t = std::vector<tune_t>;
 
 using coefficients_t = std::vector<int16_t>;
 
+struct EvalResult
+{
+    coefficients_t coefficients;
+    tune_t score;
+};
+
 #if TAPERED
 enum class PhaseStages
 {

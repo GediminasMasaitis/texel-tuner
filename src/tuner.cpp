@@ -32,7 +32,8 @@ struct Entry
     vector<CoefficientEntry> coefficients;
     tune_t wdl;
     bool white_to_move;
-    tune_t initial_eval;
+    //tune_t initial_eval;
+    tune_t additional_score;
 #if TAPERED
     int32_t phase;
 #endif
@@ -109,10 +110,8 @@ static void print_elapsed(high_resolution_clock::time_point start)
     cout << "[" << elapsed_seconds << "s] ";
 }
 
-static void get_coefficient_entries(const string& fen, vector<CoefficientEntry>& coefficient_entries, int32_t parameter_count)
+static void get_coefficient_entries(const coefficients_t& coefficients, vector<CoefficientEntry>& coefficient_entries, int32_t parameter_count)
 {
-    const auto coefficients = TuneEval::get_fen_coefficients(fen);
-
     if(coefficients.size() != parameter_count)
     {
         throw runtime_error("Parameter count mismatch");
@@ -132,7 +131,7 @@ static void get_coefficient_entries(const string& fen, vector<CoefficientEntry>&
 
 static constexpr tune_t linear_eval(const Entry& entry, const parameters_t& parameters)
 {
-    tune_t score = 0;
+    tune_t score = entry.additional_score;
 #if TAPERED 
     tune_t midgame = 0;
     tune_t endgame = 0;
@@ -141,7 +140,7 @@ static constexpr tune_t linear_eval(const Entry& entry, const parameters_t& para
         midgame += coefficient.value * parameters[coefficient.index][static_cast<int32_t>(PhaseStages::Midgame)];
         endgame += coefficient.value * parameters[coefficient.index][static_cast<int32_t>(PhaseStages::Endgame)];
     }
-    score = (midgame * entry.phase + endgame * (24 - entry.phase)) / 24;
+    score += (midgame * entry.phase + endgame * (24 - entry.phase)) / 24;
 #else
     for (const auto& coefficient : entry.coefficients)
     {
@@ -277,14 +276,21 @@ static void load_fens(const DataSource& source, const parameters_t& parameters, 
             break;
         }
 
+        const auto eval_result = TuneEval::get_fen_eval_result(fen);
+
         Entry entry;
         entry.white_to_move = get_fen_color_to_move(fen);
         entry.wdl = get_fen_wdl(fen, entry.white_to_move, source.side_to_move_wdl);
-        get_coefficient_entries(fen, entry.coefficients, static_cast<int32_t>(parameters.size()));
+        get_coefficient_entries(eval_result.coefficients, entry.coefficients, static_cast<int32_t>(parameters.size()));
 #if TAPERED
         entry.phase = get_phase(fen);
 #endif
-        entry.initial_eval = linear_eval(entry, parameters);
+        entry.additional_score = 0;
+        if constexpr (TuneEval::includes_additional_score)
+        {
+            const tune_t score = linear_eval(entry, parameters);
+            entry.additional_score = eval_result.score - score;
+        }
 
         entries.push_back(entry);
         

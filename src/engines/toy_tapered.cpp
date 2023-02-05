@@ -22,7 +22,7 @@ constexpr int32_t bishop_pair = S(25, 25);
 
 static Trace trace_evaluate(const Position& position)
 {
-    Trace trace;
+    Trace trace{};
     std::array<int, 2> bishop_counts{};
 
     for (int i = 0; i < 64; i++)
@@ -80,13 +80,15 @@ parameters_t ToyEvalTapered::get_initial_parameters()
     return parameters;
 }
 
-coefficients_t ToyEvalTapered::get_fen_coefficients(const std::string& fen)
+EvalResult ToyEvalTapered::get_fen_eval_result(const string& fen)
 {
     Position position;
     parse_fen(fen, position);
     auto trace = trace_evaluate(position);
-    auto coefficients = get_coefficients(trace);
-    return coefficients;
+    EvalResult result;
+    result.coefficients = get_coefficients(trace);
+    result.score = 0;
+    return result;
 }
 
 static void print_parameter(std::stringstream& ss, const pair_t parameter)

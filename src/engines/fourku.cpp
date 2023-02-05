@@ -161,6 +161,8 @@ static void set_fen(Position& pos, const string& fen) {
 
 struct Trace
 {
+    int score;
+
     int material[6][2]{};
     int psts[6][4][2]{};
     int centralities[6][2]{};
@@ -179,35 +181,36 @@ struct Trace
 };
 
 const int phases[] = { 0, 1, 1, 2, 4, 0 };
-const int max_material[] = { 157, 368, 403, 724, 1262, 0, 0 };
-const int material[] = { S(89, 143), S(348, 358), S(338, 381), S(480, 674), S(979, 1217), 0 };
+const int max_material[] = { 162, 381, 411, 725, 1288, 0, 0 };
+const int material[] = { S(79, 162), S(376, 381), S(363, 411), S(502, 725), S(1090, 1288), 0 };
 const int psts[][4] = {
-    {S(-19, -6), S(-2, -2), S(7, 3), S(18, 7)},
-    {S(-32, -2), S(-14, -4), S(20, 6), S(38, 7)},
-    {S(-9, -6), S(-9, -2), S(13, 1), S(24, 7)},
-    {S(-31, -12), S(-9, -25), S(2, 13), S(48, 1)},
-    {S(-11, -35), S(-1, -36), S(-25, 38), S(30, 51)},
-    {S(-33, -4), S(-8, -10), S(15, 4), S(8, 17)},
+    {S(-23, -2), S(-10, 10), S(-0, 6), S(5, 22)},
+    {S(-14, -3), S(-4, 1), S(15, 6), S(22, 13)},
+    {S(5, 0), S(1, 1), S(9, 9), S(15, 15)},
+    {S(-19, 7), S(-8, 1), S(4, 23), S(42, 11)},
+    {S(57, 17), S(60, 22), S(31, 84), S(85, 120)},
+    {S(-30, 0), S(-18, -1), S(31, -4), S(3, 9)},
 };
-const int centralities[] = { S(12, -15), S(20, 15), S(26, 8), S(-5, 0), S(3, 25), S(-6, 16) };
-const int outside_files[] = { S(8, -10), S(-3, -4), S(7, -3), S(-4, -1), S(-3, 4), S(3, 1) };
-const int pawn_protection[] = { S(18, 16), S(11, 16), S(1, 10), S(2, 10), S(-5, 21), S(-49, 29) };
-const int passers[] = { S(-6, 11), S(-22, 2), S(-8, 22), S(6, 47), S(42, 124), S(122, 187) };
-const int pawn_doubled = S(-31, -22);
-const int pawn_passed_blocked[] = { S(5, -32), S(-16, -7), S(-11, -25), S(5, -38), S(11, -70), S(42, -106) };
-const int pawn_passed_king_distance[] = { S(3, -6), S(-4, 9) };
-const int bishop_pair = S(37, 62);
-const int rook_open = S(62, 8);
-const int rook_semi_open = S(30, 17);
-const int rook_rank78 = S(19, 5);
-const int king_shield[] = { S(37, -7), S(15, -12), S(-90, 21) };
+const int centralities[] = { S(13, -19), S(15, 16), S(21, 9), S(-6, 1), S(0, 17), S(-7, 14) };
+const int outside_files[] = { S(5, -14), S(-1, -6), S(8, -3), S(-1, -2), S(-1, -3), S(8, 0) };
+const int pawn_protection[] = { S(10, 18), S(6, 25), S(-7, 17), S(-1, 13), S(-7, 25), S(-55, 28) };
+const int passers[] = { S(-6, 9), S(-12, -3), S(-11, 22), S(-1, 54), S(35, 148), S(115, 230) };
+const int pawn_doubled = S(-25, -26);
+const int pawn_passed_blocked[] = { S(0, -38), S(-19, -9), S(-8, -24), S(3, -32), S(6, -73), S(52, -115) };
+const int pawn_passed_king_distance[] = { S(3, -7), S(-5, 10) };
+const int bishop_pair = S(26, 67);
+const int rook_open = S(55, 10);
+const int rook_semi_open = S(25, 16);
+const int rook_rank78 = S(20, 11);
+const int king_shield[] = { S(22, -6), S(11, -8), S(-93, 25) };
+const int pawn_attacked[] = { S(-64, -14), S(-155, -142) };
 
 #define TraceIncr(parameter) trace.parameter[color]++
 #define TraceAdd(parameter, count) trace.parameter[color] += count
 
 static Trace eval(Position& pos) {
-    Trace trace;
-    int score = 0;
+    Trace trace{};
+    int score = S(28, 10);
     int phase = 0;
 
     for (int c = 0; c < 2; ++c) {
@@ -258,6 +261,12 @@ static Trace eval(Position& pos) {
                 if (piece_bb & protected_by_pawns) {
                     score += pawn_protection[p];
                     TraceIncr(pawn_protection[p]);
+                }
+
+                if (~pawns[0] & piece_bb & attacked_by_pawns) {
+                    // If we're to move, we'll just lose some options and our tempo.
+                    // If we're not to move, we lose a piece?
+                    score += pawn_attacked[c];
                 }
 
                 if (p == Pawn) {
@@ -329,7 +338,11 @@ static Trace eval(Position& pos) {
     }
 
     // Tapered eval
-    auto result = ((short)score * phase + ((score + 0x8000) >> 16) * (24 - phase)) / 24;
+    trace.score = ((short)score * phase + ((score + 0x8000) >> 16) * (24 - phase)) / 24;
+    if(pos.flipped)
+    {
+        trace.score = -trace.score;
+    }
     return trace;
 }
 
@@ -373,13 +386,15 @@ static coefficients_t get_coefficients(const Trace& trace)
     return coefficients;
 }
 
-coefficients_t FourkuEval::get_fen_coefficients(const string& fen)
+EvalResult FourkuEval::get_fen_eval_result(const string& fen)
 {
     Position position;
     set_fen(position, fen);
     const auto trace = eval(position);
-    const auto coefficients = get_coefficients(trace);
-    return coefficients;
+    EvalResult result;
+    result.coefficients = get_coefficients(trace);
+    result.score = trace.score;
+    return result;
 }
 
 #if TAPERED
