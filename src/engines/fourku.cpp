@@ -382,12 +382,26 @@ coefficients_t FourkuEval::get_fen_coefficients(const string& fen)
     return coefficients;
 }
 
+#if TAPERED
 static void print_parameter(std::stringstream& ss, const pair_t parameter)
 {
-    const auto mg = std::round(parameter[static_cast<int32_t>(PhaseStages::Midgame)]);
-    const auto eg = std::round(parameter[static_cast<int32_t>(PhaseStages::Endgame)]);
-    ss << "S(" << mg << ", " << eg << ")";
+    const auto mg = static_cast<int32_t>(std::round(parameter[static_cast<int32_t>(PhaseStages::Midgame)]));
+    const auto eg = static_cast<int32_t>(std::round(parameter[static_cast<int32_t>(PhaseStages::Endgame)]));
+    if(mg == 0 && eg == 0)
+    {
+        ss << 0;
+    }
+    else
+    {
+        ss << "S(" << mg << ", " << eg << ")";
+    }
 }
+#else
+static void print_parameter(std::stringstream& ss, const tune_t parameter)
+{
+    ss << static_cast<int32_t>(std::round(parameter));
+}
+#endif
 
 static void print_single(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name)
 {

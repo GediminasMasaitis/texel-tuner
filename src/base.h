@@ -39,6 +39,11 @@ static constexpr int32_t eg_score(int32_t score)
 {
     return static_cast<int16_t>((score + 0x8000) >> 16);
 }
+#else
+constexpr int32_t S(const int32_t mg, const int32_t eg)
+{
+    return (mg + eg)/2;
+}
 #endif
 
 template<typename T>
