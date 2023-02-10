@@ -306,7 +306,10 @@ static Trace eval(Position& pos) {
                             }
                         }
                     }
-                    else if (p == King && piece_bb & 0xC3C7) {
+                    else if (p == King && piece_bb & 0xC3D7) {
+                        // C3D7 = Reasonable king squares
+                        // Pawn cover is fixed in position, so it won't
+                        // walk around with the king.
                         const u64 shield = file < 3 ? 0x700 : 0xE000;
                         score += count(shield & pawns[0]) * king_shield[0];
                         TraceAdd(king_shield[0], count(shield & pawns[0]));
@@ -314,7 +317,7 @@ static Trace eval(Position& pos) {
                         score += count(north(shield) & pawns[0]) * king_shield[1];
                         TraceAdd(king_shield[1], count(north(shield) & pawns[0]));
 
-                        // C3D7 = Reasonable king squares
+                        // Bonus for being castled or still being able to.
                         score += king_shield[2];
                         TraceIncr(king_shield[2]);
                     }
@@ -337,10 +340,16 @@ static Trace eval(Position& pos) {
 }
 
 #if TAPERED
+
+static int32_t round_value(tune_t value)
+{
+    return static_cast<int32_t>(round(value));
+}
+
 static void print_parameter(std::stringstream& ss, const pair_t parameter)
 {
-    const auto mg = static_cast<int32_t>(std::round(parameter[static_cast<int32_t>(PhaseStages::Midgame)]));
-    const auto eg = static_cast<int32_t>(std::round(parameter[static_cast<int32_t>(PhaseStages::Endgame)]));
+    const auto mg = round_value(parameter[static_cast<int32_t>(PhaseStages::Midgame)]);
+    const auto eg = round_value(parameter[static_cast<int32_t>(PhaseStages::Endgame)]);
     if(mg == 0 && eg == 0)
     {
         ss << 0;
@@ -353,7 +362,7 @@ static void print_parameter(std::stringstream& ss, const pair_t parameter)
 #else
 static void print_parameter(std::stringstream& ss, const tune_t parameter)
 {
-    ss << static_cast<int32_t>(std::round(parameter));
+    ss << round_value(std::round(parameter);
 }
 #endif
 
@@ -398,9 +407,22 @@ static void print_array_2d(std::stringstream& ss, const parameters_t& parameters
                 ss << ", ";
             }
         }
-        ss << " },\n";
+        ss << "},\n";
     }
     ss << "};\n";
+}
+
+static void print_max_material(std::stringstream& ss, const parameters_t& parameters)
+{
+    ss << "const int max_material[] = {";
+    for(auto i = 0; i < 6; i++)
+    {
+        const auto mg = parameters[i][static_cast<int>(PhaseStages::Midgame)];
+        const auto eg = parameters[i][static_cast<int>(PhaseStages::Endgame)];
+        const auto max_material = round_value(max(mg, eg));
+        ss << max_material << ", ";
+    }
+    ss << "0};" << endl;
 }
 
 parameters_t FourkuEval::get_initial_parameters()
@@ -454,6 +476,7 @@ void FourkuEval::print_parameters(const parameters_t& parameters)
 {
     int index = 0;
     stringstream ss;
+    print_max_material(ss, parameters);
     print_array(ss, parameters, index, "material", 6);
     print_array_2d(ss, parameters, index, "pst_rank", 6, 8);
     print_array_2d(ss, parameters, index, "pst_file", 6, 4);
