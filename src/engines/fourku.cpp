@@ -425,6 +425,31 @@ static void print_max_material(std::stringstream& ss, const parameters_t& parame
     ss << "0};" << endl;
 }
 
+static void rebalance_psts(parameters_t& parameters, const int32_t pst_offset, const int32_t pst_size)
+{
+    for (auto pieceIndex = 0; pieceIndex < 5; pieceIndex++)
+    {
+        const int pstStart = pst_offset + pieceIndex * pst_size;
+        for (int stage = 0; stage < 2; stage++)
+        {
+            double sum = 0;
+            for (auto i = 0; i < pst_size; i++)
+            {
+                const auto pstIndex = pstStart + i;
+                sum += parameters[pstIndex][stage];
+            }
+
+            const auto average = sum / pst_size;
+            parameters[pieceIndex][stage] += average;
+            for (auto i = 0; i < pst_size; i++)
+            {
+                const auto pstIndex = pstStart + i;
+                parameters[pstIndex][stage] -= average;
+            }
+        }
+    }
+}
+
 parameters_t FourkuEval::get_initial_parameters()
 {
     parameters_t parameters;
@@ -474,21 +499,25 @@ EvalResult FourkuEval::get_fen_eval_result(const string& fen)
 
 void FourkuEval::print_parameters(const parameters_t& parameters)
 {
+    parameters_t parameters_copy = parameters;
+    rebalance_psts(parameters_copy, 6, 8);
+    rebalance_psts(parameters_copy, 6 + 6 * 8, 4);
+
     int index = 0;
     stringstream ss;
-    print_max_material(ss, parameters);
-    print_array(ss, parameters, index, "material", 6);
-    print_array_2d(ss, parameters, index, "pst_rank", 6, 8);
-    print_array_2d(ss, parameters, index, "pst_file", 6, 4);
-    print_array(ss, parameters, index, "pawn_protection", 6);
-    print_array(ss, parameters, index, "passers", 6);
-    print_single(ss, parameters, index, "pawn_doubled");
-    print_array(ss, parameters, index, "pawn_passed_blocked", 6);
-    print_array(ss, parameters, index, "pawn_passed_king_distance", 2);
-    print_single(ss, parameters, index, "bishop_pair");
-    print_single(ss, parameters, index, "rook_open");
-    print_single(ss, parameters, index, "rook_semi_open");
-    print_array(ss, parameters, index, "king_shield", 3);
+    print_max_material(ss, parameters_copy);
+    print_array(ss, parameters_copy, index, "material", 6);
+    print_array_2d(ss, parameters_copy, index, "pst_rank", 6, 8);
+    print_array_2d(ss, parameters_copy, index, "pst_file", 6, 4);
+    print_array(ss, parameters_copy, index, "pawn_protection", 6);
+    print_array(ss, parameters_copy, index, "passers", 6);
+    print_single(ss, parameters_copy, index, "pawn_doubled");
+    print_array(ss, parameters_copy, index, "pawn_passed_blocked", 6);
+    print_array(ss, parameters_copy, index, "pawn_passed_king_distance", 2);
+    print_single(ss, parameters_copy, index, "bishop_pair");
+    print_single(ss, parameters_copy, index, "rook_open");
+    print_single(ss, parameters_copy, index, "rook_semi_open");
+    print_array(ss, parameters_copy, index, "king_shield", 3);
     cout << ss.str() << "\n";
 }
     
