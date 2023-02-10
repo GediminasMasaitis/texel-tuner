@@ -459,7 +459,6 @@ void FourkuEval::print_parameters(const parameters_t& parameters)
     print_array_2d(ss, parameters, index, "pst_file", 6, 4);
     print_array(ss, parameters, index, "pawn_protection", 6);
     print_array(ss, parameters, index, "passers", 6);
-    print_single(ss, parameters, index, "pawn_doubled");
     print_array(ss, parameters, index, "pawn_passed_blocked", 6);
     print_array(ss, parameters, index, "pawn_passed_king_distance", 2);
     print_single(ss, parameters, index, "bishop_pair");
