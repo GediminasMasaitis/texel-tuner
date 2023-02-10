@@ -164,9 +164,8 @@ struct Trace
     int score;
 
     int material[6][2]{};
-    int psts[6][4][2]{};
-    int centralities[6][2]{};
-    int outside_files[6][2]{};
+    int pst_rank[6][8][2]{};
+    int pst_file[6][4][2]{};
     int pawn_protection[6][2]{};
     int passers[6][2]{};
     int pawn_doubled[2]{};
@@ -176,33 +175,35 @@ struct Trace
     int bishop_pair[2]{};
     int rook_open[2]{};
     int rook_semi_open[2]{};
-    int rook_rank78[2]{};
     int king_shield[3][2]{};
 };
 
 const int phases[] = { 0, 1, 1, 2, 4, 0 };
-const int max_material[] = { 162, 381, 411, 725, 1288, 0, 0 };
-const int material[] = { S(79, 162), S(376, 381), S(363, 411), S(502, 725), S(1090, 1288), 0 };
-const int psts[][4] = {
-    {S(-23, -2), S(-10, 10), S(-0, 6), S(5, 22)},
-    {S(-14, -3), S(-4, 1), S(15, 6), S(22, 13)},
-    {S(5, 0), S(1, 1), S(9, 9), S(15, 15)},
-    {S(-19, 7), S(-8, 1), S(4, 23), S(42, 11)},
-    {S(57, 17), S(60, 22), S(31, 84), S(85, 120)},
-    {S(-30, 0), S(-18, -1), S(31, -4), S(3, 9)},
+const int max_material[] = { 116, 352, 378, 662, 1227, 0, 0 };
+const int material[] = { S(116, 109), S(352, 348), S(378, 365), S(472, 662), S(967, 1227), 0 };
+const int pst_rank[][8] = {
+    {0, S(-10, 4), S(-11, 2), S(-6, 2), S(-2, 3), S(6, 4), S(3, -4), 0},
+    {S(-12, -5), S(-6, 0), S(-1, 4), S(4, 8), S(12, 9), S(20, 5), S(11, 2), S(-10, -1)},
+    {S(-10, -3), S(-3, 1), S(1, 3), S(3, 5), S(5, 6), S(14, 2), S(4, 3), S(-13, 2)},
+    {S(-1, -9), S(-4, -11), S(-5, -9), S(-5, -5), S(1, -2), S(9, -2), S(12, -1), S(5, 0)},
+    {S(-8, -20), S(-4, -17), S(-4, -10), S(-6, 1), S(-2, 6), S(6, 3), S(-7, 11), S(-1, 3)},
+    {S(1, -6), S(-2, 2), S(-6, 4), S(-13, 8), S(-6, 10), S(7, 9), S(11, 7), S(11, -1)},
 };
-const int centralities[] = { S(13, -19), S(15, 16), S(21, 9), S(-6, 1), S(0, 17), S(-7, 14) };
-const int outside_files[] = { S(5, -14), S(-1, -6), S(8, -3), S(-1, -2), S(-1, -3), S(8, 0) };
-const int pawn_protection[] = { S(10, 18), S(6, 25), S(-7, 17), S(-1, 13), S(-7, 25), S(-55, 28) };
-const int passers[] = { S(-6, 9), S(-12, -3), S(-11, 22), S(-1, 54), S(35, 148), S(115, 230) };
-const int pawn_doubled = S(-25, -26);
-const int pawn_passed_blocked[] = { S(0, -38), S(-19, -9), S(-8, -24), S(3, -32), S(6, -73), S(52, -115) };
-const int pawn_passed_king_distance[] = { S(3, -7), S(-5, 10) };
-const int bishop_pair = S(26, 67);
-const int rook_open = S(55, 10);
-const int rook_semi_open = S(25, 16);
-const int rook_rank78 = S(20, 11);
-const int king_shield[] = { S(22, -6), S(11, -8), S(-93, 25) };
+const int pst_file[][4] = { {S(2, -5), S(9, -5), S(6, -5), S(7, -7)},
+                           {S(-10, -9), S(-4, -5), S(2, -1), S(3, 1)},
+                           {S(-4, -5), S(2, -3), S(1, -1), S(2, 0)},
+                           {S(-3, 0), S(-2, 1), S(-1, 2), S(0, 1)},
+                           {S(-9, 0), S(-6, 1), S(-4, 5), S(-3, 5)},
+                           {S(4, -11), S(7, -7), S(-3, -4), S(-10, -3)} };
+const int pawn_protection[] = { S(20, 15), S(9, 12), S(2, 5), S(4, 7), S(-6, 19), S(-41, 23) };
+const int passers[] = { S(-31, 17), S(-19, 8), S(3, 20), S(19, 52), S(48, 119), S(132, 209) };
+const int pawn_doubled = S(-29, -25);
+const int pawn_passed_blocked[] = { S(16, -16), S(-35, -4), S(-55, -11), S(5, -35), S(6, -65), S(28, -75) };
+const int pawn_passed_king_distance[] = { S(3, -6), S(-6, 9) };
+const int bishop_pair = S(27, 68);
+const int rook_open = S(61, 7);
+const int rook_semi_open = S(27, 20);
+const int king_shield[] = { S(52, -9), S(40, -10), S(-19, 2) };
 const int pawn_attacked[] = { S(-64, -14), S(-155, -142) };
 
 #define TraceIncr(parameter) trace.parameter[color]++
@@ -232,41 +233,28 @@ static Trace eval(Position& pos) {
         for (int p = 0; p < 6; ++p) {
             auto copy = pos.colour[0] & pos.pieces[p];
             while (copy) {
-                phase += phases[p];
-
                 const int sq = lsb(copy);
                 copy &= copy - 1;
-                const int rank = sq / 8;
-                const int file = sq % 8;
-                const int centrality = (7 - abs(7 - rank - file) - abs(rank - file)) / 2;
 
                 // Material
+                phase += phases[p];
                 score += material[p];
                 TraceIncr(material[p]);
 
-                // Centrality
-                score += centrality * centralities[p];
-                TraceAdd(centralities[p], centrality);
+                const int rank = sq / 8;
+                const int file = sq % 8;
 
-                // Closeness to outside files
-                score += abs(file - 3) * outside_files[p];
-                TraceAdd(outside_files[p], abs(file - 3));
-
-                // Quadrant PSTs
-                score += psts[p][(rank / 4) * 2 + file / 4];
-                TraceIncr(psts[p][(rank / 4) * 2 + file / 4]);
+                // Split quantized PSTs
+                score += pst_rank[p][rank] * 4;
+                TraceAdd(pst_rank[p][rank], 4);
+                score += pst_file[p][min(file, 7 - file)] * 4;
+                TraceAdd(pst_file[p][min(file, 7 - file)], 4);
 
                 // Pawn protection
                 const u64 piece_bb = 1ULL << sq;
                 if (piece_bb & protected_by_pawns) {
                     score += pawn_protection[p];
                     TraceIncr(pawn_protection[p]);
-                }
-
-                if (~pawns[0] & piece_bb & attacked_by_pawns) {
-                    // If we're to move, we'll just lose some options and our tempo.
-                    // If we're not to move, we lose a piece?
-                    score += pawn_attacked[c];
                 }
 
                 if (p == Pawn) {
@@ -297,37 +285,39 @@ static Trace eval(Position& pos) {
                         TraceIncr(pawn_doubled);
                     }
                 }
-                else if (p == Rook) {
-                    // Rook on open or semi-open files
-                    const u64 file_bb = 0x101010101010101ULL << file;
-                    if (!(file_bb & pawns[0])) {
-                        if (!(file_bb & pawns[1])) {
-                            score += rook_open;
-                            TraceIncr(rook_open);
-                        }
-                        else {
-                            score += rook_semi_open;
-                            TraceIncr(rook_semi_open);
-                        }
+                else {
+                    if (piece_bb & attacked_by_pawns) {
+                        // If we're to move, we'll just lose some options and our tempo.
+                        // If we're not to move, we lose a piece?
+                        score += pawn_attacked[c];
                     }
 
-                    // Rook on 7th or 8th rank
-                    if (rank >= 6) {
-                        score += rook_rank78;
-                        TraceIncr(rook_rank78);
+                    if (p == Rook) {
+                        // Rook on open or semi-open files
+                        const u64 file_bb = 0x101010101010101ULL << file;
+                        if (!(file_bb & pawns[0])) {
+                            if (!(file_bb & pawns[1])) {
+                                score += rook_open;
+                                TraceIncr(rook_open);
+                            }
+                            else {
+                                score += rook_semi_open;
+                                TraceIncr(rook_semi_open);
+                            }
+                        }
                     }
-                }
-                else if (p == King && piece_bb & 0xE7) {
-                    const u64 shield = file < 3 ? 0x700 : 0xE000;
-                    score += count(shield & pawns[0]) * king_shield[0];
-                    TraceAdd(king_shield[0], count(shield & pawns[0]));
+                    else if (p == King && piece_bb & 0xC3C7) {
+                        const u64 shield = file < 3 ? 0x700 : 0xE000;
+                        score += count(shield & pawns[0]) * king_shield[0];
+                        TraceAdd(king_shield[0], count(shield & pawns[0]));
 
-                    score += count(north(shield) & pawns[0]) * king_shield[1];
-                    TraceAdd(king_shield[1], count(north(shield) & pawns[0]));
+                        score += count(north(shield) & pawns[0]) * king_shield[1];
+                        TraceAdd(king_shield[1], count(north(shield) & pawns[0]));
 
-                    // C3D7 = Reasonable king squares
-                    score += !(piece_bb & 0xC3D7) * king_shield[2];
-                    TraceAdd(king_shield[2], !(piece_bb & 0xC3D7));
+                        // C3D7 = Reasonable king squares
+                        score += king_shield[2];
+                        TraceIncr(king_shield[2]);
+                    }
                 }
             }
         }
@@ -344,57 +334,6 @@ static Trace eval(Position& pos) {
         trace.score = -trace.score;
     }
     return trace;
-}
-
-parameters_t FourkuEval::get_initial_parameters()
-{
-    parameters_t parameters;
-    get_initial_parameter_array(parameters, material, 6);
-    get_initial_parameter_array_2d(parameters, psts, 6, 4);
-    get_initial_parameter_array(parameters, centralities, 6);
-    get_initial_parameter_array(parameters, outside_files, 6);
-    get_initial_parameter_array(parameters, pawn_protection, 6);
-    get_initial_parameter_array(parameters, passers, 6);
-    get_initial_parameter_single(parameters, pawn_doubled);
-    get_initial_parameter_array(parameters, pawn_passed_blocked, 6);
-    get_initial_parameter_array(parameters, pawn_passed_king_distance, 2);
-    get_initial_parameter_single(parameters, bishop_pair);
-    get_initial_parameter_single(parameters, rook_open);
-    get_initial_parameter_single(parameters, rook_semi_open);
-    get_initial_parameter_single(parameters, rook_rank78);
-    get_initial_parameter_array(parameters, king_shield, 3);
-    return parameters;
-}
-
-static coefficients_t get_coefficients(const Trace& trace)
-{
-    coefficients_t coefficients;
-    get_coefficient_array(coefficients, trace.material, 6);
-    get_coefficient_array_2d(coefficients, trace.psts, 6, 4);
-    get_coefficient_array(coefficients, trace.centralities, 6);
-    get_coefficient_array(coefficients, trace.outside_files, 6);
-    get_coefficient_array(coefficients, trace.pawn_protection, 6);
-    get_coefficient_array(coefficients, trace.passers, 6);
-    get_coefficient_single(coefficients, trace.pawn_doubled);
-    get_coefficient_array(coefficients, trace.pawn_passed_blocked, 6);
-    get_coefficient_array(coefficients, trace.pawn_passed_king_distance, 2);
-    get_coefficient_single(coefficients, trace.bishop_pair);
-    get_coefficient_single(coefficients, trace.rook_open);
-    get_coefficient_single(coefficients, trace.rook_semi_open);
-    get_coefficient_single(coefficients, trace.rook_rank78);
-    get_coefficient_array(coefficients, trace.king_shield, 3);
-    return coefficients;
-}
-
-EvalResult FourkuEval::get_fen_eval_result(const string& fen)
-{
-    Position position;
-    set_fen(position, fen);
-    const auto trace = eval(position);
-    EvalResult result;
-    result.coefficients = get_coefficients(trace);
-    result.score = trace.score;
-    return result;
 }
 
 #if TAPERED
@@ -458,15 +397,57 @@ static void print_array_2d(std::stringstream& ss, const parameters_t& parameters
             {
                 ss << ", ";
             }
-
-            if (j % 8 == 7)
-            {
-                ss << "\n";
-            }
         }
         ss << " },\n";
     }
     ss << "};\n";
+}
+
+parameters_t FourkuEval::get_initial_parameters()
+{
+    parameters_t parameters;
+    get_initial_parameter_array(parameters, material, 6);
+    get_initial_parameter_array_2d(parameters, pst_rank, 6, 8);
+    get_initial_parameter_array_2d(parameters, pst_file, 6, 4);
+    get_initial_parameter_array(parameters, pawn_protection, 6);
+    get_initial_parameter_array(parameters, passers, 6);
+    get_initial_parameter_single(parameters, pawn_doubled);
+    get_initial_parameter_array(parameters, pawn_passed_blocked, 6);
+    get_initial_parameter_array(parameters, pawn_passed_king_distance, 2);
+    get_initial_parameter_single(parameters, bishop_pair);
+    get_initial_parameter_single(parameters, rook_open);
+    get_initial_parameter_single(parameters, rook_semi_open);
+    get_initial_parameter_array(parameters, king_shield, 3);
+    return parameters;
+}
+
+static coefficients_t get_coefficients(const Trace& trace)
+{
+    coefficients_t coefficients;
+    get_coefficient_array(coefficients, trace.material, 6);
+    get_coefficient_array_2d(coefficients, trace.pst_rank, 6, 8);
+    get_coefficient_array_2d(coefficients, trace.pst_file, 6, 4);
+    get_coefficient_array(coefficients, trace.pawn_protection, 6);
+    get_coefficient_array(coefficients, trace.passers, 6);
+    get_coefficient_single(coefficients, trace.pawn_doubled);
+    get_coefficient_array(coefficients, trace.pawn_passed_blocked, 6);
+    get_coefficient_array(coefficients, trace.pawn_passed_king_distance, 2);
+    get_coefficient_single(coefficients, trace.bishop_pair);
+    get_coefficient_single(coefficients, trace.rook_open);
+    get_coefficient_single(coefficients, trace.rook_semi_open);
+    get_coefficient_array(coefficients, trace.king_shield, 3);
+    return coefficients;
+}
+
+EvalResult FourkuEval::get_fen_eval_result(const string& fen)
+{
+    Position position;
+    set_fen(position, fen);
+    const auto trace = eval(position);
+    EvalResult result;
+    result.coefficients = get_coefficients(trace);
+    result.score = trace.score;
+    return result;
 }
 
 void FourkuEval::print_parameters(const parameters_t& parameters)
@@ -474,9 +455,8 @@ void FourkuEval::print_parameters(const parameters_t& parameters)
     int index = 0;
     stringstream ss;
     print_array(ss, parameters, index, "material", 6);
-    print_array_2d(ss, parameters, index, "psts", 6, 4);
-    print_array(ss, parameters, index, "centralities", 6);
-    print_array(ss, parameters, index, "outside_files", 6);
+    print_array_2d(ss, parameters, index, "pst_rank", 6, 8);
+    print_array_2d(ss, parameters, index, "pst_file", 6, 4);
     print_array(ss, parameters, index, "pawn_protection", 6);
     print_array(ss, parameters, index, "passers", 6);
     print_single(ss, parameters, index, "pawn_doubled");
@@ -485,7 +465,6 @@ void FourkuEval::print_parameters(const parameters_t& parameters)
     print_single(ss, parameters, index, "bishop_pair");
     print_single(ss, parameters, index, "rook_open");
     print_single(ss, parameters, index, "rook_semi_open");
-    print_single(ss, parameters, index, "rook_rank78");
     print_array(ss, parameters, index, "king_shield", 3);
     cout << ss.str() << "\n";
 }
