@@ -64,7 +64,7 @@ rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1; [0.6]
 The brackets are not necessary, the WDL only has to be found somewhere in the line.
 
 ## Usage
-Create a csv formatted filed with data sources. `#` marks a comment line.
+Create a csv formatted file with data sources. `#` marks a comment line.
 
 Columns:
 1. Path to data file.
