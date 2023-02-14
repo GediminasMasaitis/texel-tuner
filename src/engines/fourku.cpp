@@ -175,7 +175,7 @@ struct Trace
     int bishop_pair[2]{};
     int rook_open[2]{};
     int rook_semi_open[2]{};
-    int king_shield[3][2]{};
+    int king_shield[2][2]{};
 };
 
 const int phases[] = { 0, 1, 1, 2, 4, 0 };
@@ -203,7 +203,7 @@ const int pawn_passed_king_distance[] = { S(3, -6), S(-6, 9) };
 const int bishop_pair = S(27, 68);
 const int rook_open = S(61, 7);
 const int rook_semi_open = S(27, 20);
-const int king_shield[] = { S(52, -9), S(40, -10), S(-19, 2) };
+const int king_shield[] = { S(52, -9), S(40, -10) };
 const int pawn_attacked[] = { S(-64, -14), S(-155, -142) };
 
 #define TraceIncr(parameter) trace.parameter[color]++
@@ -316,10 +316,6 @@ static Trace eval(Position& pos) {
 
                         score += count(north(shield) & pawns[0]) * king_shield[1];
                         TraceAdd(king_shield[1], count(north(shield) & pawns[0]));
-
-                        // Bonus for being castled or still being able to.
-                        score += king_shield[2];
-                        TraceIncr(king_shield[2]);
                     }
                 }
             }
@@ -464,7 +460,7 @@ parameters_t FourkuEval::get_initial_parameters()
     get_initial_parameter_single(parameters, bishop_pair);
     get_initial_parameter_single(parameters, rook_open);
     get_initial_parameter_single(parameters, rook_semi_open);
-    get_initial_parameter_array(parameters, king_shield, 3);
+    get_initial_parameter_array(parameters, king_shield, 2);
     return parameters;
 }
 
@@ -482,7 +478,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_single(coefficients, trace.bishop_pair);
     get_coefficient_single(coefficients, trace.rook_open);
     get_coefficient_single(coefficients, trace.rook_semi_open);
-    get_coefficient_array(coefficients, trace.king_shield, 3);
+    get_coefficient_array(coefficients, trace.king_shield, 2);
     return coefficients;
 }
 
@@ -517,7 +513,7 @@ void FourkuEval::print_parameters(const parameters_t& parameters)
     print_single(ss, parameters_copy, index, "bishop_pair");
     print_single(ss, parameters_copy, index, "rook_open");
     print_single(ss, parameters_copy, index, "rook_semi_open");
-    print_array(ss, parameters_copy, index, "king_shield", 3);
+    print_array(ss, parameters_copy, index, "king_shield", 2);
     cout << ss.str() << "\n";
 }
     
