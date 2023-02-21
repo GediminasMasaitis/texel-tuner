@@ -352,7 +352,7 @@ static tune_t find_optimal_k(ThreadPool& thread_pool, const vector<Entry>& entri
     constexpr tune_t rate = 10;
     constexpr tune_t delta = 1e-5;
     constexpr tune_t deviation_goal = 1e-6;
-    tune_t K = 2;
+    tune_t K = 2.5;
     tune_t deviation = 1;
 
     while (fabs(deviation) > deviation_goal)
@@ -463,6 +463,19 @@ void Tuner::run(const std::vector<DataSource>& sources)
 
     print_statistics(parameters, entries);
 
+    if constexpr (retune_from_zero)
+    {
+        for (auto& parameter : parameters)
+        {
+#if TAPERED
+            parameter[static_cast<int>(PhaseStages::Midgame)] = static_cast<tune_t>(0);
+            parameter[static_cast<int>(PhaseStages::Endgame)] = static_cast<tune_t>(0);
+#else
+            parameter = static_cast<tune_t>(0);
+#endif            
+        }
+    }
+
     cout << "Initial parameters:" << endl;
     TuneEval::print_parameters(parameters);
 
@@ -483,7 +496,7 @@ void Tuner::run(const std::vector<DataSource>& sources)
     cout << "Initial error = " << avg_error << endl;
 
     const auto loop_start = high_resolution_clock::now();
-    tune_t learning_rate = 0.3;
+    tune_t learning_rate = 1;
 #if TAPERED
     parameters_t momentum(parameters.size(), pair_t{});
     parameters_t velocity(parameters.size(), pair_t{});

@@ -12,5 +12,6 @@
 using TuneEval = Fourku::FourkuEval;
 constexpr int32_t thread_count = 12;
 constexpr double preferred_k = 0;
+constexpr bool retune_from_zero = true;
 
 #endif // !CONFIG_H
