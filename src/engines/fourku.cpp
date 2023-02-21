@@ -101,6 +101,38 @@ static void flip(Position& pos) {
     pos.flipped = !pos.flipped;
 }
 
+template <typename F>
+[[nodiscard]] auto ray(const int sq, const u64 blockers, F f) {
+    u64 mask = f(1ULL << sq);
+    mask |= f(mask & ~blockers);
+    mask |= f(mask & ~blockers);
+    mask |= f(mask & ~blockers);
+    mask |= f(mask & ~blockers);
+    mask |= f(mask & ~blockers);
+    mask |= f(mask & ~blockers);
+    return mask;
+}
+
+[[nodiscard]] u64 knight(const int sq, const u64) {
+    const u64 bb = 1ULL << sq;
+    return (((bb << 15) | (bb >> 17)) & 0x7F7F7F7F7F7F7F7FULL) | (((bb << 17) | (bb >> 15)) & 0xFEFEFEFEFEFEFEFEULL) |
+        (((bb << 10) | (bb >> 6)) & 0xFCFCFCFCFCFCFCFCULL) | (((bb << 6) | (bb >> 10)) & 0x3F3F3F3F3F3F3F3FULL);
+}
+
+[[nodiscard]] auto bishop(const int sq, const u64 blockers) {
+    return ray(sq, blockers, nw) | ray(sq, blockers, ne) | ray(sq, blockers, sw) | ray(sq, blockers, se);
+}
+
+[[nodiscard]] auto rook(const int sq, const u64 blockers) {
+    return ray(sq, blockers, north) | ray(sq, blockers, east) | ray(sq, blockers, south) | ray(sq, blockers, west);
+}
+
+[[nodiscard]] u64 king(const int sq, const u64) {
+    const u64 bb = 1ULL << sq;
+    return (bb << 8) | (bb >> 8) | (((bb >> 1) | (bb >> 9) | (bb << 7)) & 0x7F7F7F7F7F7F7F7FULL) |
+        (((bb << 1) | (bb << 9) | (bb >> 7)) & 0xFEFEFEFEFEFEFEFEULL);
+}
+
 static void set_fen(Position& pos, const string& fen) {
     // Clear
     pos.colour = {};
@@ -165,44 +197,49 @@ struct Trace
 
     int material[6][2]{};
     int pst_rank[6][8][2]{};
-    int pst_file[6][4][2]{};
+    int pst_file[6][8][2]{};
+    int open_files[2][3][2]{};
     int pawn_protection[6][2]{};
-    int passers[6][2]{};
+    int passers[4][2]{};
     int pawn_doubled[2]{};
-    int pawn_passed_blocked[6][2]{};
+    int pawn_passed_protected[2]{};
+    int pawn_passed_blocked[4][2]{};
     int pawn_passed_king_distance[2][2]{};
     int bishop_pair[2]{};
-    int rook_open[2]{};
-    int rook_semi_open[2]{};
     int king_shield[2][2]{};
 };
 
 const int phases[] = { 0, 1, 1, 2, 4, 0 };
-const int max_material[] = { 116, 352, 378, 662, 1227, 0, 0 };
-const int material[] = { S(116, 109), S(352, 348), S(378, 365), S(472, 662), S(967, 1227), 0 };
+const int max_material[] = { 127, 392, 429, 744, 1344, 0, 0 };
+const int material[] = { S(95, 127), S(381, 392), S(402, 429), S(512, 744), S(1163, 1344), 0 };
 const int pst_rank[][8] = {
-    {0, S(-11, 5), S(-12, 3), S(-7, 3), S(-3, 4), S(6, 4), S(6, -9), 0},
-    {S(-12, -5), S(-6, 0), S(-1, 4), S(4, 8), S(12, 9), S(20, 5), S(11, 2), S(-10, -1)},
-    {S(-10, -3), S(-3, 1), S(1, 3), S(3, 5), S(5, 6), S(14, 2), S(4, 3), S(-13, 2)},
-    {S(-1, -9), S(-4, -11), S(-5, -9), S(-5, -5), S(1, -2), S(9, -2), S(12, -1), S(5, 0)},
-    {S(-8, -20), S(-4, -17), S(-4, -10), S(-6, 1), S(-2, 6), S(6, 3), S(-7, 11), S(-1, 3)},
-    {S(-3, -4), S(-4, 3), S(-6, 5), S(-15, 9), S(-8, 11), S(9, 10), S(11, 7), S(14, -2)},
+    {0, S(-5, 1), S(-5, -1), S(-1, -3), S(3, -1), S(8, 5), 0, 0},
+    {S(-9, -8), S(-4, -3), 0, S(4, 7), S(9, 8), S(18, 1), S(9, -3), S(-27, -3)},
+    {S(-8, -4), S(-1, -4), S(2, -1), S(3, 3), S(5, 4), S(10, 1), S(2, 0), S(-13, 0)},
+    {S(-5, -2), S(-9, -4), S(-8, -4), S(-7, 1), S(1, 2), S(6, 1), S(9, 3), S(14, 3)},
+    {S(-3, -14), S(0, -20), S(0, -10), S(-2, 4), S(-1, 11), S(5, 8), S(-3, 13), S(4, 9)},
+    {S(-4, -7), S(-4, 1), S(-2, 2), S(-4, 5), S(1, 6), S(20, 4), S(12, 2), S(0, -5)},
 };
-const int pst_file[][4] = { {S(3, -6), S(10, -6), S(7, -6), S(9, -8)},
-                           {S(-10, -9), S(-4, -5), S(2, -1), S(3, 1)},
-                           {S(-4, -5), S(2, -3), S(1, -1), S(2, 0)},
-                           {S(-3, 0), S(-2, 1), S(-1, 2), S(0, 1)},
-                           {S(-9, 0), S(-6, 1), S(-4, 5), S(-3, 5)},
-                           {S(3, -10), S(7, -6), S(-2, -3), S(-9, -2)} };
-const int pawn_protection[] = { S(20, 15), S(9, 12), S(2, 5), S(4, 7), S(-6, 19), S(-41, 23) };
-const int passers[] = { S(-31, 17), S(-19, 8), S(3, 20), S(19, 52), S(48, 119), S(132, 209) };
-const int pawn_doubled = S(-29, -25);
-const int pawn_passed_blocked[] = { S(16, -16), S(-35, -4), S(-55, -11), S(5, -35), S(6, -65), S(28, -75) };
-const int pawn_passed_king_distance[] = { S(3, -6), S(-6, 9) };
-const int bishop_pair = S(27, 68);
-const int rook_open = S(61, 7);
-const int rook_semi_open = S(27, 20);
-const int king_shield[] = { S(50, -9), S(38, -10) };
+const int pst_file[][8] = {
+    {S(-4, 0), S(-2, 1), S(-1, 0), S(2, -3), S(2, 0), S(4, 0), S(4, 1), S(-5, 0)},
+    {S(-8, -9), S(-2, -2), S(1, 3), S(3, 7), S(3, 6), S(4, 3), S(2, -1), S(-3, -6)},
+    {S(-5, -4), S(1, -1), S(1, 1), S(0, 2), S(0, 3), S(0, 2), S(4, 2), S(-1, -4)},
+    {S(-2, 0), S(-3, 1), S(-1, 2), S(1, 0), S(1, 0), S(2, 0), S(2, -1), S(0, -2)},
+    {S(-5, -10), S(-1, -8), S(0, -3), S(-1, 5), S(-2, 6), S(1, 5), S(6, 1), S(3, 4)},
+    {S(-2, -5), S(4, -2), S(-4, 3), S(-11, 5), S(-9, 5), S(-5, 4), S(3, 1), S(5, -6)},
+};
+const int open_files[][3] = {
+    {S(25, 18), S(2, 28), S(-20, 2)},
+    {S(51, 11), S(-1, 29), S(-54, -8)},
+};
+const int pawn_protection[] = { S(15, 13), S(5, 20), S(-1, 11), S(6, 8), S(-10, 15), S(-36, 23) };
+const int passers[] = { S(-28, 15), S(-16, 47), S(2, 113), S(121, 220) };
+const int pawn_passed_protected = S(17, 19);
+const int pawn_doubled = S(-19, -31);
+const int pawn_passed_blocked[] = { S(-7, -18), S(6, -36), S(-3, -69), S(25, -106) };
+const int pawn_passed_king_distance[] = { S(3, -6), S(-3, 9) };
+const int bishop_pair = S(22, 68);
+const int king_shield[] = { S(34, -6), S(24, -6) };
 const int pawn_attacked[] = { S(-64, -14), S(-155, -142) };
 
 #define TraceIncr(parameter) trace.parameter[color]++
@@ -244,10 +281,13 @@ static Trace eval(Position& pos) {
                 const int file = sq % 8;
 
                 // Split quantized PSTs
-                score += pst_rank[p][rank] * 4;
-                TraceAdd(pst_rank[p][rank], 4);
-                score += pst_file[p][min(file, 7 - file)] * 4;
-                TraceAdd(pst_file[p][min(file, 7 - file)], 4);
+                if (p != Pawn || (rank != 0 && rank != 6 && rank != 7)) // Special for tuner. Rank 6 = guaranteed passer
+                {
+                    score += pst_rank[p][rank] * 4;
+                    TraceAdd(pst_rank[p][rank], 4);
+                }
+                score += pst_file[p][file] * 4;
+                TraceAdd(pst_file[p][file], 4);
 
                 // Pawn protection
                 const u64 piece_bb = 1ULL << sq;
@@ -260,14 +300,19 @@ static Trace eval(Position& pos) {
                     // Passed pawns
                     u64 blockers = 0x101010101010101ULL << sq;
                     blockers |= nw(blockers) | ne(blockers);
-                    if (!(blockers & pawns[1])) {
-                        score += passers[rank - 1];
-                        TraceIncr(passers[rank - 1]);
+                    if (rank > 2 && !(blockers & pawns[1])) {
+                        score += passers[rank - 3];
+                        TraceIncr(passers[rank - 3]);
+
+                        if (piece_bb & protected_by_pawns) {
+                            score += pawn_passed_protected;
+                            TraceIncr(pawn_passed_protected);
+                        }
 
                         // Blocked passed pawns
                         if (north(piece_bb) & pos.colour[1]) {
-                            score += pawn_passed_blocked[rank - 1];
-                            TraceIncr(pawn_passed_blocked[rank - 1]);
+                            score += pawn_passed_blocked[rank - 3];
+                            TraceIncr(pawn_passed_blocked[rank - 3]);
                         }
 
                         // King defense/attack
@@ -285,27 +330,21 @@ static Trace eval(Position& pos) {
                     }
                 }
                 else {
+                    // Pawn attacks
                     if (piece_bb & attacked_by_pawns) {
                         // If we're to move, we'll just lose some options and our tempo.
                         // If we're not to move, we lose a piece?
                         score += pawn_attacked[c];
                     }
 
-                    if (p == Rook) {
-                        // Rook on open or semi-open files
-                        const u64 file_bb = 0x101010101010101ULL << file;
-                        if (!(file_bb & pawns[0])) {
-                            if (!(file_bb & pawns[1])) {
-                                score += rook_open;
-                                TraceIncr(rook_open);
-                            }
-                            else {
-                                score += rook_semi_open;
-                                TraceIncr(rook_semi_open);
-                            }
-                        }
+                    // Open or semi-open files
+                    const u64 file_bb = 0x101010101010101ULL << file;
+                    if (p > Bishop && !(file_bb & pawns[0])) {
+                        score += open_files[!(file_bb & pawns[1])][p - 3];
+                        TraceIncr(open_files[!(file_bb & pawns[1])][p - 3]);
                     }
-                    else if (p == King && piece_bb & 0xC3D7) {
+
+                    if (p == King && piece_bb & 0xC3D7) {
                         // C3D7 = Reasonable king squares
                         // Pawn cover is fixed in position, so it won't
                         // walk around with the king.
@@ -327,7 +366,7 @@ static Trace eval(Position& pos) {
 
     // Tapered eval
     trace.score = ((short)score * phase + ((score + 0x8000) >> 16) * (24 - phase)) / 24;
-    if(pos.flipped)
+    if (pos.flipped)
     {
         trace.score = -trace.score;
     }
@@ -345,7 +384,7 @@ static void print_parameter(std::stringstream& ss, const pair_t parameter)
 {
     const auto mg = round_value(parameter[static_cast<int32_t>(PhaseStages::Midgame)]);
     const auto eg = round_value(parameter[static_cast<int32_t>(PhaseStages::Endgame)]);
-    if(mg == 0 && eg == 0)
+    if (mg == 0 && eg == 0)
     {
         ss << 0;
     }
@@ -410,7 +449,7 @@ static void print_array_2d(std::stringstream& ss, const parameters_t& parameters
 static void print_max_material(std::stringstream& ss, const parameters_t& parameters)
 {
     ss << "const int max_material[] = {";
-    for(auto i = 0; i < 6; i++)
+    for (auto i = 0; i < 6; i++)
     {
         const auto mg = parameters[i][static_cast<int>(PhaseStages::Midgame)];
         const auto eg = parameters[i][static_cast<int>(PhaseStages::Endgame)];
@@ -420,7 +459,7 @@ static void print_max_material(std::stringstream& ss, const parameters_t& parame
     ss << "0};" << endl;
 }
 
-static void rebalance_psts(parameters_t& parameters, const int32_t pst_offset, const int32_t pst_size)
+static void rebalance_psts(parameters_t& parameters, const int32_t pst_offset, bool pawn_exclusion, const int32_t pst_size, const int32_t quantization)
 {
     for (auto pieceIndex = 0; pieceIndex < 5; pieceIndex++)
     {
@@ -430,14 +469,23 @@ static void rebalance_psts(parameters_t& parameters, const int32_t pst_offset, c
             double sum = 0;
             for (auto i = 0; i < pst_size; i++)
             {
+                if (pieceIndex == 0 && pawn_exclusion && (i == 0 || i == pst_size - 1 || i == pst_size - 2))
+                {
+                    continue;
+                }
                 const auto pstIndex = pstStart + i;
                 sum += parameters[pstIndex][stage];
             }
 
-            const auto average = sum / pst_size;
-            parameters[pieceIndex][stage] += average;
+            const auto average = sum / (pieceIndex == 0 && pawn_exclusion ? pst_size - 3 : pst_size);
+            //const auto average = sum / pst_size;
+            parameters[pieceIndex][stage] += average * quantization;
             for (auto i = 0; i < pst_size; i++)
             {
+                if (pieceIndex == 0 && pawn_exclusion && (i == 0 || i == pst_size - 1 || i == pst_size - 2))
+                {
+                    continue;
+                }
                 const auto pstIndex = pstStart + i;
                 parameters[pstIndex][stage] -= average;
             }
@@ -450,15 +498,15 @@ parameters_t FourkuEval::get_initial_parameters()
     parameters_t parameters;
     get_initial_parameter_array(parameters, material, 6);
     get_initial_parameter_array_2d(parameters, pst_rank, 6, 8);
-    get_initial_parameter_array_2d(parameters, pst_file, 6, 4);
+    get_initial_parameter_array_2d(parameters, pst_file, 6, 8);
+    get_initial_parameter_array_2d(parameters, open_files, 2, 3);
     get_initial_parameter_array(parameters, pawn_protection, 6);
-    get_initial_parameter_array(parameters, passers, 6);
+    get_initial_parameter_array(parameters, passers, 4);
+    get_initial_parameter_single(parameters, pawn_passed_protected);
     get_initial_parameter_single(parameters, pawn_doubled);
-    get_initial_parameter_array(parameters, pawn_passed_blocked, 6);
+    get_initial_parameter_array(parameters, pawn_passed_blocked, 4);
     get_initial_parameter_array(parameters, pawn_passed_king_distance, 2);
     get_initial_parameter_single(parameters, bishop_pair);
-    get_initial_parameter_single(parameters, rook_open);
-    get_initial_parameter_single(parameters, rook_semi_open);
     get_initial_parameter_array(parameters, king_shield, 2);
     return parameters;
 }
@@ -468,15 +516,15 @@ static coefficients_t get_coefficients(const Trace& trace)
     coefficients_t coefficients;
     get_coefficient_array(coefficients, trace.material, 6);
     get_coefficient_array_2d(coefficients, trace.pst_rank, 6, 8);
-    get_coefficient_array_2d(coefficients, trace.pst_file, 6, 4);
+    get_coefficient_array_2d(coefficients, trace.pst_file, 6, 8);
+    get_coefficient_array_2d(coefficients, trace.open_files, 2, 3);
     get_coefficient_array(coefficients, trace.pawn_protection, 6);
-    get_coefficient_array(coefficients, trace.passers, 6);
+    get_coefficient_array(coefficients, trace.passers, 4);
+    get_coefficient_single(coefficients, trace.pawn_passed_protected);
     get_coefficient_single(coefficients, trace.pawn_doubled);
-    get_coefficient_array(coefficients, trace.pawn_passed_blocked, 6);
+    get_coefficient_array(coefficients, trace.pawn_passed_blocked, 4);
     get_coefficient_array(coefficients, trace.pawn_passed_king_distance, 2);
     get_coefficient_single(coefficients, trace.bishop_pair);
-    get_coefficient_single(coefficients, trace.rook_open);
-    get_coefficient_single(coefficients, trace.rook_semi_open);
     get_coefficient_array(coefficients, trace.king_shield, 2);
     return coefficients;
 }
@@ -495,24 +543,23 @@ EvalResult FourkuEval::get_fen_eval_result(const string& fen)
 void FourkuEval::print_parameters(const parameters_t& parameters)
 {
     parameters_t parameters_copy = parameters;
-    rebalance_psts(parameters_copy, 6, 8);
-    rebalance_psts(parameters_copy, 6 + 6 * 8, 4);
+    rebalance_psts(parameters_copy, 6, true, 8, 4);
+    rebalance_psts(parameters_copy, 6 + 6 * 8, false, 8, 4);
 
     int index = 0;
     stringstream ss;
     print_max_material(ss, parameters_copy);
     print_array(ss, parameters_copy, index, "material", 6);
     print_array_2d(ss, parameters_copy, index, "pst_rank", 6, 8);
-    print_array_2d(ss, parameters_copy, index, "pst_file", 6, 4);
+    print_array_2d(ss, parameters_copy, index, "pst_file", 6, 8);
+    print_array_2d(ss, parameters_copy, index, "open_files", 2, 3);
     print_array(ss, parameters_copy, index, "pawn_protection", 6);
-    print_array(ss, parameters_copy, index, "passers", 6);
+    print_array(ss, parameters_copy, index, "passers", 4);
+    print_single(ss, parameters_copy, index, "pawn_passed_protected");
     print_single(ss, parameters_copy, index, "pawn_doubled");
-    print_array(ss, parameters_copy, index, "pawn_passed_blocked", 6);
+    print_array(ss, parameters_copy, index, "pawn_passed_blocked", 4);
     print_array(ss, parameters_copy, index, "pawn_passed_king_distance", 2);
     print_single(ss, parameters_copy, index, "bishop_pair");
-    print_single(ss, parameters_copy, index, "rook_open");
-    print_single(ss, parameters_copy, index, "rook_semi_open");
     print_array(ss, parameters_copy, index, "king_shield", 2);
     cout << ss.str() << "\n";
 }
-    
