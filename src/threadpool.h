@@ -1,9 +1,11 @@
 #ifndef THREADPOOL_H
 #define THREADPOOL_H 1
 
+#include <condition_variable>
 #include <functional>
 #include <mutex>
 #include <queue>
+#include <thread>
 
 class ThreadPool {
 public:

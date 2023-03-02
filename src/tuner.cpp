@@ -5,8 +5,10 @@
 
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <thread>
 #include <vector>
@@ -97,7 +99,7 @@ static tune_t get_fen_wdl(const string& fen, bool white_to_move, bool side_to_mo
     return wdl;
 }   
 
-static constexpr bool get_fen_color_to_move(const string& fen)
+static bool get_fen_color_to_move(const string& fen)
 {
     return fen.find('w') != std::string::npos;
 }
@@ -129,7 +131,7 @@ static void get_coefficient_entries(const coefficients_t& coefficients, vector<C
     }
 }
 
-static constexpr tune_t linear_eval(const Entry& entry, const parameters_t& parameters)
+static tune_t linear_eval(const Entry& entry, const parameters_t& parameters)
 {
     tune_t score = entry.additional_score;
 #if TAPERED 
@@ -156,7 +158,7 @@ static constexpr tune_t linear_eval(const Entry& entry, const parameters_t& para
     return score;
 }
 
-static constexpr int32_t get_phase(const string& fen)
+static int32_t get_phase(const string& fen)
 {
     int32_t phase = 0;
     auto stop = false;

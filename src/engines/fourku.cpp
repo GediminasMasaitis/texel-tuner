@@ -5,6 +5,7 @@
 
 #include <array>
 #include <bit>
+#include <cmath>
 #include <iostream>
 #include <sstream>
 
