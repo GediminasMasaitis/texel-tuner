@@ -5,6 +5,10 @@
 out
 build
 enc_temp_folder
+CMakeFiles
 
 CMakeSettings.json
+CMakeCache.txt
+cmake_install.cmake
+Makefile
 sources.csv

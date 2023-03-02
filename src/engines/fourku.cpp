@@ -308,9 +308,7 @@ static Trace eval(Position& pos) {
 
                 if (p == Pawn) {
                     // Passed pawns
-                    u64 blockers = 0x101010101010101ULL << sq;
-                    blockers |= nw(blockers) | ne(blockers);
-                    if (rank > 2 && !(blockers & pawns[1])) {
+                    if (rank > 2 && !(0x101010101010101ULL << sq & (pawns[1] | attacked_by_pawns))) {
                         score += passers[rank - 3];
                         TraceIncr(passers[rank - 3]);
 
