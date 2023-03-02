@@ -442,6 +442,7 @@ void Tuner::run(const std::vector<DataSource>& sources)
 
     cout << "Getting initial parameters..." << endl;
     auto parameters = TuneEval::get_initial_parameters();
+    cout << "Got " << parameters.size() << " parameters" << endl;
 
     cout << "Initial parameters:" << endl;
     TuneEval::print_parameters(parameters);
