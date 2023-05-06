@@ -200,6 +200,7 @@ struct Trace
     int pst_rank[6][8][2]{};
     int pst_file[6][8][2]{};
     int open_files[2][3][2]{};
+    int mobilities[5][2]{};
     int pawn_protection[6][2]{};
     int passers[4][2]{};
     int pawn_doubled[2]{};
@@ -234,6 +235,7 @@ const int open_files[][3] = {
     {S(25, 17), S(2, 27), S(-20, 3)},
     {S(52, 11), S(-1, 29), S(-54, -8)},
 };
+const int mobilities[] = { 0,0,0,0,0 };
 const int pawn_protection[] = { S(20, 17), S(4, 20), S(1, 11), S(8, 8), S(-9, 16), S(-35, 22) };
 const int passers[] = { S(-24, 17), S(-12, 49), S(7, 116), S(133, 235) };
 const int pawn_passed_protected = S(15, 17);
@@ -261,6 +263,7 @@ static Trace eval(Position& pos) {
         const u64 protected_by_pawns = nw(pawns[0]) | ne(pawns[0]);
         const u64 attacked_by_pawns = se(pawns[1]) | sw(pawns[1]);
         const int kings[] = { lsb(pos.colour[0] & pos.pieces[King]), lsb(pos.colour[1] & pos.pieces[King]) };
+        const u64 all_pieces = pos.colour[0] | pos.colour[1];
 
         // Bishop pair
         if (count(pos.colour[0] & pos.pieces[Bishop]) == 2) {
@@ -346,6 +349,24 @@ static Trace eval(Position& pos) {
                         score += open_files[!(file_bb & pawns[1])][p - 3];
                         TraceIncr(open_files[!(file_bb & pawns[1])][p - 3]);
                     }
+
+                    u64 mobility = 0;
+                    if(p == Knight) {
+                        mobility = knight(sq, all_pieces);
+                    }
+                    else if(p == Bishop)
+                    {
+                        mobility = bishop(sq, all_pieces);
+                    }
+                    else if(p == Rook) {
+                        mobility = rook(sq, all_pieces);
+                    }
+                    else if(p == Queen) {
+                        mobility = bishop(sq, all_pieces) | rook(sq, all_pieces);
+                    }
+                    mobility &= ~pos.colour[0];
+                    score += mobilities[p-1] * count(mobility);
+                    TraceAdd(mobilities[p-1], count(mobility));
 
                     if (p == King && piece_bb & 0xC3D7) {
                         // C3D7 = Reasonable king squares
@@ -503,6 +524,7 @@ parameters_t FourkuEval::get_initial_parameters()
     get_initial_parameter_array_2d(parameters, pst_rank, 6, 8);
     get_initial_parameter_array_2d(parameters, pst_file, 6, 8);
     get_initial_parameter_array_2d(parameters, open_files, 2, 3);
+    get_initial_parameter_array(parameters, mobilities, 5);
     get_initial_parameter_array(parameters, pawn_protection, 6);
     get_initial_parameter_array(parameters, passers, 4);
     get_initial_parameter_single(parameters, pawn_passed_protected);
@@ -522,6 +544,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array_2d(coefficients, trace.pst_rank, 6, 8);
     get_coefficient_array_2d(coefficients, trace.pst_file, 6, 8);
     get_coefficient_array_2d(coefficients, trace.open_files, 2, 3);
+    get_coefficient_array(coefficients, trace.mobilities, 5);
     get_coefficient_array(coefficients, trace.pawn_protection, 6);
     get_coefficient_array(coefficients, trace.passers, 4);
     get_coefficient_single(coefficients, trace.pawn_passed_protected);
@@ -558,6 +581,7 @@ void FourkuEval::print_parameters(const parameters_t& parameters)
     print_array_2d(ss, parameters_copy, index, "pst_rank", 6, 8);
     print_array_2d(ss, parameters_copy, index, "pst_file", 6, 8);
     print_array_2d(ss, parameters_copy, index, "open_files", 2, 3);
+    print_array(ss, parameters_copy, index, "mobilities", 5);
     print_array(ss, parameters_copy, index, "pawn_protection", 6);
     print_array(ss, parameters_copy, index, "passers", 4);
     print_single(ss, parameters_copy, index, "pawn_passed_protected");
