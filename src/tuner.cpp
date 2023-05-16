@@ -500,6 +500,7 @@ void Tuner::run(const std::vector<DataSource>& sources)
 
     const auto loop_start = high_resolution_clock::now();
     tune_t learning_rate = 1;
+    int32_t max_tune_epoch = max_epoch;
 #if TAPERED
     parameters_t momentum(parameters.size(), pair_t{});
     parameters_t velocity(parameters.size(), pair_t{});
@@ -507,7 +508,7 @@ void Tuner::run(const std::vector<DataSource>& sources)
     parameters_t momentum(parameters.size(), 0);
     parameters_t velocity(parameters.size(), 0);
 #endif
-    for (int epoch = 1; epoch < 1000000; epoch++)
+    for (int epoch = 1; epoch < max_tune_epoch; epoch++)
     {
 #if TAPERED
         parameters_t gradient(parameters.size(), pair_t{});
@@ -555,4 +556,6 @@ void Tuner::run(const std::vector<DataSource>& sources)
             learning_rate *= lr_drop_ratio;
         }
     }
+
+    thread_pool.stop();
 }
