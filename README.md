@@ -2,6 +2,8 @@
 
 This project is based on the linear evaluation ideas described in https://github.com/AndyGrant/Ethereal/blob/master/Tuning.pdf. The code is loosely based on an implementation in Weiss, which can be found at https://github.com/TerjeKir/weiss.
 
+The project internally uses https://github.com/Disservin/chess-library
+
 ## Plugging in your evaluation
 To add your own evaluation it is required to transform your evaluation into a linear system.
 
