@@ -36,6 +36,8 @@ struct [[nodiscard]] Position {
                             0x1000000000000010ULL };
     u64 ep = 0x0ULL;
     int flipped = false;
+
+    auto operator<=>(const Position&) const = default;
 };
 
 [[nodiscard]] static u64 flip(u64 bb) {
@@ -534,17 +536,6 @@ static coefficients_t get_coefficients(const Trace& trace)
     return coefficients;
 }
 
-EvalResult FourkuEval::get_fen_eval_result(const string& fen)
-{
-    Position position;
-    set_fen(position, fen);
-    const auto trace = eval(position);
-    EvalResult result;
-    result.coefficients = get_coefficients(trace);
-    result.score = trace.score;
-    return result;
-}
-
 void FourkuEval::print_parameters(const parameters_t& parameters)
 {
     parameters_t parameters_copy = parameters;
@@ -568,4 +559,60 @@ void FourkuEval::print_parameters(const parameters_t& parameters)
     print_single(ss, parameters_copy, index, "bishop_pair");
     print_array(ss, parameters_copy, index, "king_shield", 2);
     cout << ss.str() << "\n";
+}
+
+Position get_position_from_external(const Chess::Board& board)
+{
+    Position position;
+
+    position.flipped = false;
+
+    position.colour[0] = board.us(Chess::Color::WHITE);
+    position.colour[1] = board.them(Chess::Color::WHITE);
+
+    position.pieces[Pawn] = board.pieces(Chess::PieceType::PAWN, Chess::Color::WHITE) | board.pieces(Chess::PieceType::PAWN, Chess::Color::BLACK);
+    position.pieces[Knight] = board.pieces(Chess::PieceType::KNIGHT, Chess::Color::WHITE) | board.pieces(Chess::PieceType::KNIGHT, Chess::Color::BLACK);
+    position.pieces[Bishop] = board.pieces(Chess::PieceType::BISHOP, Chess::Color::WHITE) | board.pieces(Chess::PieceType::BISHOP, Chess::Color::BLACK);
+    position.pieces[Rook] = board.pieces(Chess::PieceType::ROOK, Chess::Color::WHITE) | board.pieces(Chess::PieceType::ROOK, Chess::Color::BLACK);
+    position.pieces[Queen] = board.pieces(Chess::PieceType::QUEEN, Chess::Color::WHITE) | board.pieces(Chess::PieceType::QUEEN, Chess::Color::BLACK);
+    position.pieces[King] = board.pieces(Chess::PieceType::KING, Chess::Color::WHITE) | board.pieces(Chess::PieceType::KING, Chess::Color::BLACK);
+
+    position.castling[0] = board.castlingRights().hasCastlingRight(Chess::Color::WHITE, Chess::CastleSide::KING_SIDE);
+    position.castling[1] = board.castlingRights().hasCastlingRight(Chess::Color::WHITE, Chess::CastleSide::QUEEN_SIDE);
+    position.castling[2] = board.castlingRights().hasCastlingRight(Chess::Color::BLACK, Chess::CastleSide::KING_SIDE);
+    position.castling[3] = board.castlingRights().hasCastlingRight(Chess::Color::BLACK, Chess::CastleSide::QUEEN_SIDE);
+
+    position.ep = board.enpassantSquare();
+    if(position.ep == 64)
+    {
+        position.ep = 0;
+    }
+
+    if (board.sideToMove() == Chess::Color::BLACK)
+    {
+        flip(position);
+    }
+
+    return position;
+}
+
+EvalResult FourkuEval::get_fen_eval_result(const string& fen)
+{
+    Position position;
+    set_fen(position, fen);
+    const auto trace = eval(position);
+    EvalResult result;
+    result.coefficients = get_coefficients(trace);
+    result.score = trace.score;
+    return result;
+}
+
+EvalResult FourkuEval::get_external_eval_result(const Chess::Board& board)
+{
+    auto position = get_position_from_external(board);
+    const auto trace = eval(position);
+    EvalResult result;
+    result.coefficients = get_coefficients(trace);
+    result.score = trace.score;
+    return result;
 }

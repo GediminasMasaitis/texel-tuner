@@ -207,6 +207,35 @@ static int32_t get_phase(const string& fen)
     return phase;
 }
 
+static int32_t get_phase(const Chess::Board& board)
+{
+    int32_t phase = 0;
+
+    for(Chess::Square square = static_cast<Chess::Square>(0); square < 64; ++square)
+    {
+        auto piece = board.pieceAt(square);
+        switch (piece)
+        {
+        case Chess::Piece::WHITEKNIGHT:
+        case Chess::Piece::WHITEBISHOP:
+        case Chess::Piece::BLACKKNIGHT:
+        case Chess::Piece::BLACKBISHOP:
+            phase += 1;
+            break;
+        case Chess::Piece::WHITEROOK:
+        case Chess::Piece::BLACKROOK:
+            phase += 2;
+            break;
+        case Chess::Piece::WHITEQUEEN:
+        case Chess::Piece::BLACKQUEEN:
+            phase += 4;
+            break;
+        }
+    }
+
+    return phase;
+}
+
 static void print_statistics(const parameters_t& parameters, const vector<Entry>& entries)
 {
     array<size_t, 2> wins{};
@@ -256,16 +285,24 @@ struct PvEntry
 };
 using pv_table_t = array<PvEntry, 64>;
 
-static tune_t quiescence(Chess::Board& board, const parameters_t& parameters, pv_table_t& pv_table, tune_t alpha, tune_t beta, int32_t ply)
+static tune_t quiescence(Chess::Board& board, const parameters_t& parameters, pv_table_t& pv_table, tune_t alpha, tune_t beta, const int32_t ply)
 {
-    auto fen = board.getFen();
-    const auto eval_result = TuneEval::get_fen_eval_result(fen);
+    EvalResult eval_result;
+    if constexpr (TuneEval::supports_external_chess_eval)
+    {
+        eval_result = TuneEval::get_external_eval_result(board);
+    }
+    else
+    {
+        auto fen = board.getFen();
+        eval_result = TuneEval::get_fen_eval_result(fen);
+    }
 
     Entry entry;
-    entry.white_to_move = get_fen_color_to_move(fen);
+    entry.white_to_move = board.sideToMove() == Chess::Color::WHITE;
     get_coefficient_entries(eval_result.coefficients, entry.coefficients, static_cast<int32_t>(parameters.size()));
 #if TAPERED
-    entry.phase = get_phase(fen);
+    entry.phase = get_phase(board);
 #endif
     entry.additional_score = 0;
     tune_t eval = linear_eval(entry, parameters);
