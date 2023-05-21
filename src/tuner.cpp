@@ -53,7 +53,7 @@ static const array<WdlMarker, 6> markers
     WdlMarker{"0-1", 0}
 };
 
-static tune_t get_fen_wdl(const string& fen, bool white_to_move, bool side_to_move_wdl)
+static tune_t get_fen_wdl(const string& fen, const bool white_to_move, const bool original_white_to_move, const bool side_to_move_wdl)
 {
     tune_t wdl;
     bool marker_found = false;
@@ -93,6 +93,11 @@ static tune_t get_fen_wdl(const string& fen, bool white_to_move, bool side_to_mo
     }
 
     if(!white_to_move && side_to_move_wdl)
+    {
+        wdl = 1 - wdl;
+    }
+
+    if(white_to_move != original_white_to_move && side_to_move_wdl)
     {
         wdl = 1 - wdl;
     }
@@ -336,6 +341,8 @@ static int32_t mvv_lva(const Chess::Board& board, const Chess::Move move)
 
 static tune_t quiescence(Chess::Board& board, const parameters_t& parameters, pv_table_t& pv_table, tune_t alpha, tune_t beta, const int32_t ply)
 {
+    pv_table[ply].length = 0;
+
     EvalResult eval_result;
     if constexpr (TuneEval::supports_external_chess_eval)
     {
@@ -436,7 +443,7 @@ static tune_t quiescence(Chess::Board& board, const parameters_t& parameters, pv
     return best_score;
 }
 
-void quiescence_root(const parameters_t& parameters, const string& initial_fen)
+string quiescence_root(const parameters_t& parameters, const string& initial_fen)
 {
     pv_table_t pv_table {};
     int space_count = 0;
@@ -470,6 +477,14 @@ void quiescence_root(const parameters_t& parameters, const string& initial_fen)
         }
         cout << " QS: " << score;
     }
+
+    for (int32_t pv_index = 0; pv_index < pv_table[0].length; pv_index++)
+    {
+        board.makeMove(pv_table[0].moves[pv_index]);
+    }
+
+    auto result_fen = board.getFen();
+    return result_fen;
 }
 
 static void load_fens(const DataSource& source, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries)
@@ -489,7 +504,6 @@ static void load_fens(const DataSource& source, const parameters_t& parameters, 
     }
 
     int64_t position_count = 0;
-    string fen;
     while (!file.eof())
     {
         if (source.position_limit > 0 && position_count >= source.position_limit)
@@ -497,8 +511,9 @@ static void load_fens(const DataSource& source, const parameters_t& parameters, 
             break;
         }
 
-        getline(file, fen);
-        if (fen.empty())
+        string original_fen;
+        getline(file, original_fen);
+        if (original_fen.empty())
         {
             break;
         }
@@ -508,17 +523,23 @@ static void load_fens(const DataSource& source, const parameters_t& parameters, 
             //cout << fen;
         }
 
+        string fen;
         if constexpr (enable_qsearch)
         {
-            quiescence_root(parameters, fen);
+            fen = quiescence_root(parameters, original_fen);
+        }
+        else
+        {
+            fen = original_fen;
         }
 
         const auto eval_result = TuneEval::get_fen_eval_result(fen);
 
         Entry entry;
         entry.white_to_move = get_fen_color_to_move(fen);
+        const bool original_white_to_move = get_fen_color_to_move(original_fen);
         //cout << (entry.white_to_move ? "w" : "b") << " ";
-        entry.wdl = get_fen_wdl(fen, entry.white_to_move, source.side_to_move_wdl);
+        entry.wdl = get_fen_wdl(original_fen, entry.white_to_move, original_white_to_move, source.side_to_move_wdl);
         get_coefficient_entries(eval_result.coefficients, entry.coefficients, static_cast<int32_t>(parameters.size()));
 #if TAPERED
         entry.phase = get_phase(fen);

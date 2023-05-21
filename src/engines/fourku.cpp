@@ -587,11 +587,22 @@ Position get_position_from_external(const Chess::Board& board)
     {
         position.ep = 0;
     }
+    if(position.ep != 0)
+    {
+        position.ep = 1ULL << position.ep;
+    }
 
     if (board.sideToMove() == Chess::Color::BLACK)
     {
         flip(position);
     }
+
+    //Position position2;
+    //set_fen(position2, board.getFen());
+    //if(position != position2)
+    //{
+    //    throw std::runtime_error("Position mismatch");
+    //}
 
     return position;
 }
