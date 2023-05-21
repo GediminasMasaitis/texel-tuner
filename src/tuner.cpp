@@ -2,6 +2,7 @@
 #include "base.h"
 #include "config.h"
 #include "threadpool.h"
+#include "external/chess.hpp"
 
 #include <array>
 #include <chrono>
@@ -247,6 +248,122 @@ static void print_statistics(const parameters_t& parameters, const vector<Entry>
     cout << endl;
 }
 
+constexpr tune_t inf = 1 << 20;
+struct PvEntry
+{
+    array<Chess::Move, 64> moves{};
+    int32_t length = 0;
+};
+using pv_table_t = array<PvEntry, 64>;
+
+static tune_t quiescence(Chess::Board& board, const parameters_t& parameters, pv_table_t& pv_table, tune_t alpha, tune_t beta, int32_t ply)
+{
+    auto fen = board.getFen();
+    const auto eval_result = TuneEval::get_fen_eval_result(fen);
+
+    Entry entry;
+    entry.white_to_move = get_fen_color_to_move(fen);
+    get_coefficient_entries(eval_result.coefficients, entry.coefficients, static_cast<int32_t>(parameters.size()));
+#if TAPERED
+    entry.phase = get_phase(fen);
+#endif
+    entry.additional_score = 0;
+    tune_t eval = linear_eval(entry, parameters);
+    if(!entry.white_to_move)
+    {
+        eval = -eval;
+    }
+
+    if (eval >= beta)
+    {
+        return eval;
+    }
+
+    if (eval > alpha)
+    {
+        alpha = eval;
+    }
+
+    Chess::Movelist<Chess::Move> movelist;
+    Chess::Movegen::legalmoves<Chess::Move, Chess::MoveGenType::CAPTURE>(movelist, board);
+
+    if(movelist.size() == 0)
+    {
+        return alpha;
+    }
+
+    tune_t best_score = -inf;
+    auto best_move = Chess::Move(Chess::Move::NO_MOVE);
+    for (const auto& move : movelist) {
+        board.makeMove(move);
+
+        const auto child_score = -quiescence(board, parameters, pv_table, -beta, -alpha, ply + 1);
+        if(child_score > best_score)
+        {
+            best_score = child_score;
+            best_move = move;
+            if (child_score > alpha)
+            {
+                alpha = child_score;
+                if(child_score >= beta)
+                {
+                    board.unmakeMove(move);
+                    break;
+                }
+
+                auto& this_ply = pv_table[ply];
+                auto& next_ply = pv_table[ply + 1];
+                this_ply.moves[0] = move;
+                this_ply.length = next_ply.length + 1;
+                for (int32_t nextPlyIndex = 0; nextPlyIndex < next_ply.length; nextPlyIndex++)
+                {
+                    this_ply.moves[nextPlyIndex + 1] = next_ply.moves[nextPlyIndex];
+                }
+            }
+        }
+
+        board.unmakeMove(move);
+    }
+
+    return best_score;
+}
+
+void quiescence_root(const parameters_t& parameters, const string& initial_fen)
+{
+    pv_table_t pv_table {};
+    int space_count = 0;
+    size_t pos = 0;
+    for (size_t i = 0; i < initial_fen.size(); ++i) {
+        if (initial_fen[i] == ' ') {
+            ++space_count;
+        }
+        if (space_count == 4) {
+            pos = i;
+            break;
+        }
+    }
+    const auto clean_fen = initial_fen.substr(0, pos);
+
+    auto board = Chess::Board(clean_fen);
+    auto score = quiescence(board, parameters, pv_table, -inf, inf, 0);
+    if(board.sideToMove() == Chess::Color::BLACK)
+    {
+        score = -score;
+    }
+    if constexpr (print_data_entries)
+    {
+        if (pv_table[0].length > 0)
+        {
+            cout << " PV:";
+            for (int32_t pv_index = 0; pv_index < pv_table[0].length; pv_index++)
+            {
+                cout << " " << pv_table[0].moves[pv_index];
+            }
+        }
+        cout << " QS: " << score;
+    }
+}
+
 static void load_fens(const DataSource& source, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries)
 {
     cout << "Loading " << source.path;
@@ -278,10 +395,21 @@ static void load_fens(const DataSource& source, const parameters_t& parameters, 
             break;
         }
 
+        if constexpr (print_data_entries)
+        {
+            //cout << fen;
+        }
+
+        if constexpr (enable_qsearch)
+        {
+            quiescence_root(parameters, fen);
+        }
+
         const auto eval_result = TuneEval::get_fen_eval_result(fen);
 
         Entry entry;
         entry.white_to_move = get_fen_color_to_move(fen);
+        //cout << (entry.white_to_move ? "w" : "b") << " ";
         entry.wdl = get_fen_wdl(fen, entry.white_to_move, source.side_to_move_wdl);
         get_coefficient_entries(eval_result.coefficients, entry.coefficients, static_cast<int32_t>(parameters.size()));
 #if TAPERED
@@ -291,13 +419,17 @@ static void load_fens(const DataSource& source, const parameters_t& parameters, 
         if constexpr (TuneEval::includes_additional_score)
         {
             const tune_t score = linear_eval(entry, parameters);
+            if constexpr (print_data_entries)
+            {
+                cout << " Eval: " << score << endl;
+            }
             entry.additional_score = eval_result.score - score;
         }
 
         entries.push_back(entry);
         
         position_count++;
-        if (position_count % 100000 == 0)
+        if (position_count % data_load_print_interval == 0)
         {
             print_elapsed(start);
             std::cout << "Loaded " << position_count << " entries..." << std::endl;

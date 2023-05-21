@@ -10,15 +10,13 @@ using namespace std;
 using namespace Tuner;
 
 int main(int argc, char** argv) {
-    if(argc == 1)
-    {
-        cout << "Please provide a data source list file" << endl;
-        return -1;
-    }
-
     vector<DataSource> sources;
     {
-        const string csv_path = argv[1];
+        string csv_path = "sources.csv";
+        if (argc > 1)
+        {
+            csv_path = argv[1];
+        }
         ifstream csv(csv_path);
         if(!csv)
         {

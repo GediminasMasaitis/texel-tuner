@@ -14,5 +14,8 @@ constexpr int32_t thread_count = 12;
 constexpr double preferred_k = 0;
 constexpr int32_t max_epoch = 50000;
 constexpr bool retune_from_zero = true;
+constexpr bool enable_qsearch = false;
+constexpr bool print_data_entries = false;
+constexpr int32_t data_load_print_interval = 100000;
 
 #endif // !CONFIG_H
