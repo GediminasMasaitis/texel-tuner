@@ -53,17 +53,17 @@ static const array<WdlMarker, 6> markers
     WdlMarker{"0-1", 0}
 };
 
-static tune_t get_fen_wdl(const string& fen, const bool white_to_move, const bool original_white_to_move, const bool side_to_move_wdl)
+static tune_t get_fen_wdl(const string& original_fen, const bool original_white_to_move, const bool white_to_move, const bool side_to_move_wdl)
 {
     tune_t wdl;
     bool marker_found = false;
     for (auto& marker : markers)
     {
-        if (fen.find(marker.marker) != std::string::npos)
+        if (original_fen.find(marker.marker) != std::string::npos)
         {
             if (marker_found)
             {
-                cout << "WDL marker already found on line " << fen << endl;
+                cout << "WDL marker already found on line " << original_fen << endl;
                 throw std::runtime_error("WDL marker already found");
             }
             marker_found = true;
@@ -73,7 +73,7 @@ static tune_t get_fen_wdl(const string& fen, const bool white_to_move, const boo
 
     if(!marker_found)
     {
-        stringstream ss(fen);
+        stringstream ss(original_fen);
         while (!ss.eof())
         {
             string word;
@@ -88,7 +88,7 @@ static tune_t get_fen_wdl(const string& fen, const bool white_to_move, const boo
 
     if (!marker_found)
     {
-        cout << "WDL marker not found on line " << fen << endl;
+        cout << "WDL marker not found on line " << original_fen << endl;
         throw std::runtime_error("WDL marker not found");
     }
 
@@ -539,7 +539,7 @@ static void load_fens(const DataSource& source, const parameters_t& parameters, 
         entry.white_to_move = get_fen_color_to_move(fen);
         const bool original_white_to_move = get_fen_color_to_move(original_fen);
         //cout << (entry.white_to_move ? "w" : "b") << " ";
-        entry.wdl = get_fen_wdl(original_fen, entry.white_to_move, original_white_to_move, source.side_to_move_wdl);
+        entry.wdl = get_fen_wdl(original_fen, original_white_to_move, entry.white_to_move, source.side_to_move_wdl);
         get_coefficient_entries(eval_result.coefficients, entry.coefficients, static_cast<int32_t>(parameters.size()));
 #if TAPERED
         entry.phase = get_phase(fen);
