@@ -285,6 +285,55 @@ struct PvEntry
 };
 using pv_table_t = array<PvEntry, 64>;
 
+static int32_t get_piece_value(const Chess::Piece piece)
+{
+    switch (piece)
+    {
+    case Chess::Piece::WHITEPAWN:
+    case Chess::Piece::BLACKPAWN:
+        return 100;
+    case Chess::Piece::WHITEKNIGHT:
+    case Chess::Piece::BLACKKNIGHT:
+        return 300;
+    case Chess::Piece::WHITEBISHOP:
+    case Chess::Piece::BLACKBISHOP:
+        return 300;
+    case Chess::Piece::WHITEROOK:
+    case Chess::Piece::BLACKROOK:
+        return 500;
+    case Chess::Piece::WHITEQUEEN:
+    case Chess::Piece::BLACKQUEEN:
+        return 900;
+    case Chess::Piece::WHITEKING:
+    case Chess::Piece::BLACKKING:
+    case Chess::Piece::NONE:
+        return 0;
+        //throw std::runtime_error("Invalid piece for value");
+    }
+}
+
+static int32_t mvv_lva(const Chess::Board& board, const Chess::Move move)
+{
+    const auto from = move.from();
+    const auto to = move.to();
+    const auto piece = board.pieceAt(from);
+    Chess::Piece takes;
+    const auto type = move.typeOf();
+    if(type == Chess::Move::EN_PASSANT)
+    {
+        takes = board.sideToMove() == Chess::Color::WHITE ? Chess::Piece::BLACKPAWN : Chess::Piece::WHITEPAWN;
+    }
+    else
+    {
+        takes = board.pieceAt(to);
+    }
+
+    auto score = get_piece_value(takes);
+    score <<= 16;
+    score -= get_piece_value(piece);
+    return score;
+}
+
 static tune_t quiescence(Chess::Board& board, const parameters_t& parameters, pv_table_t& pv_table, tune_t alpha, tune_t beta, const int32_t ply)
 {
     EvalResult eval_result;
@@ -321,17 +370,39 @@ static tune_t quiescence(Chess::Board& board, const parameters_t& parameters, pv
         alpha = eval;
     }
 
-    Chess::Movelist<Chess::Move> movelist;
-    Chess::Movegen::legalmoves<Chess::Move, Chess::MoveGenType::CAPTURE>(movelist, board);
+    Chess::Movelist<Chess::Move> moves;
+    Chess::Movegen::legalmoves<Chess::Move, Chess::MoveGenType::CAPTURE>(moves, board);
+    array<int32_t, 64> move_scores;
+    for (int32_t move_index = 0; move_index < moves.size(); move_index++)
+    {
+        move_scores[move_index] = mvv_lva(board, moves[move_index]);
+    }
 
-    if(movelist.size() == 0)
+    if(moves.size() == 0)
     {
         return alpha;
     }
 
     tune_t best_score = -inf;
     auto best_move = Chess::Move(Chess::Move::NO_MOVE);
-    for (const auto& move : movelist) {
+    //for (const auto& move : movelist) {
+    for(int32_t move_index = 0; move_index < moves.size(); move_index++)
+    {
+        int32_t best_move_score = 0;
+        int32_t best_move_index = 0;
+        for(auto i = move_index; i < moves.size(); i++)
+        {
+            if(move_scores[i] > best_move_score)
+            {
+                best_move_score = move_scores[i];
+                best_move_index = i;
+            }
+        }
+
+        const auto move = moves[best_move_index];
+        moves[best_move_index] = moves[move_index];
+        move_scores[best_move_index] = move_scores[move_index];
+
         board.makeMove(move);
 
         const auto child_score = -quiescence(board, parameters, pv_table, -beta, -alpha, ply + 1);
