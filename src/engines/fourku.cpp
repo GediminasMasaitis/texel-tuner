@@ -296,11 +296,11 @@ static Trace eval(Position& pos) {
                 // Split quantized PSTs
                 if (p != Pawn || (rank != 0 && rank != 6 && rank != 7)) // Special for tuner. Rank 6 = guaranteed passer
                 {
-                    score += pst_rank[p][rank] * 4;
-                    TraceAdd(pst_rank[p][rank], 4);
+                    score += pst_rank[p][rank] * 8;
+                    TraceAdd(pst_rank[p][rank], 8);
                 }
-                score += pst_file[p][file] * 4;
-                TraceAdd(pst_file[p][file], 4);
+                score += pst_file[p][file] * 8;
+                TraceAdd(pst_file[p][file], 8);
 
                 // Pawn protection
                 const u64 piece_bb = 1ULL << sq;
@@ -539,8 +539,8 @@ static coefficients_t get_coefficients(const Trace& trace)
 void FourkuEval::print_parameters(const parameters_t& parameters)
 {
     parameters_t parameters_copy = parameters;
-    rebalance_psts(parameters_copy, 6, true, 8, 4);
-    rebalance_psts(parameters_copy, 6 + 6 * 8, false, 8, 4);
+    rebalance_psts(parameters_copy, 6, true, 8, 8);
+    rebalance_psts(parameters_copy, 6 + 6 * 8, false, 8, 8);
 
     int index = 0;
     stringstream ss;
