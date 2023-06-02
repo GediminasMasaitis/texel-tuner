@@ -92,12 +92,7 @@ static tune_t get_fen_wdl(const string& original_fen, const bool original_white_
         throw std::runtime_error("WDL marker not found");
     }
 
-    if(!white_to_move && side_to_move_wdl)
-    {
-        wdl = 1 - wdl;
-    }
-
-    if(white_to_move != original_white_to_move && side_to_move_wdl)
+    if(!original_white_to_move && side_to_move_wdl)
     {
         wdl = 1 - wdl;
     }
@@ -155,11 +150,6 @@ static tune_t linear_eval(const Entry& entry, const parameters_t& parameters)
         score += coefficient.value * parameters[coefficient.index];
     }
 #endif
-
-    //if(!entry.white_to_move)
-    //{
-    //    score = -score;
-    //}
 
     return score;
 }
