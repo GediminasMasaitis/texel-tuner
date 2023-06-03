@@ -477,6 +477,48 @@ string quiescence_root(const parameters_t& parameters, const string& initial_fen
     return result_fen;
 }
 
+static void load_fen(const DataSource& source, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries, const string& original_fen)
+{
+    if constexpr (print_data_entries)
+    {
+        //cout << fen;
+    }
+
+    string fen;
+    if constexpr (enable_qsearch)
+    {
+        fen = quiescence_root(parameters, original_fen);
+    }
+    else
+    {
+        fen = original_fen;
+    }
+
+    const auto eval_result = TuneEval::get_fen_eval_result(fen);
+
+    Entry entry;
+    entry.white_to_move = get_fen_color_to_move(fen);
+    const bool original_white_to_move = get_fen_color_to_move(original_fen);
+    //cout << (entry.white_to_move ? "w" : "b") << " ";
+    entry.wdl = get_fen_wdl(original_fen, original_white_to_move, entry.white_to_move, source.side_to_move_wdl);
+    get_coefficient_entries(eval_result.coefficients, entry.coefficients, static_cast<int32_t>(parameters.size()));
+#if TAPERED
+    entry.phase = get_phase(fen);
+#endif
+    entry.additional_score = 0;
+    if constexpr (TuneEval::includes_additional_score)
+    {
+        const tune_t score = linear_eval(entry, parameters);
+        if constexpr (print_data_entries)
+        {
+            cout << " Eval: " << score << endl;
+        }
+        entry.additional_score = eval_result.score - score;
+    }
+
+    entries.push_back(entry);
+}
+
 static void load_fens(const DataSource& source, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries)
 {
     cout << "Loading " << source.path;
@@ -508,45 +550,8 @@ static void load_fens(const DataSource& source, const parameters_t& parameters, 
             break;
         }
 
-        if constexpr (print_data_entries)
-        {
-            //cout << fen;
-        }
+        load_fen(source, parameters, start, entries, original_fen);
 
-        string fen;
-        if constexpr (enable_qsearch)
-        {
-            fen = quiescence_root(parameters, original_fen);
-        }
-        else
-        {
-            fen = original_fen;
-        }
-
-        const auto eval_result = TuneEval::get_fen_eval_result(fen);
-
-        Entry entry;
-        entry.white_to_move = get_fen_color_to_move(fen);
-        const bool original_white_to_move = get_fen_color_to_move(original_fen);
-        //cout << (entry.white_to_move ? "w" : "b") << " ";
-        entry.wdl = get_fen_wdl(original_fen, original_white_to_move, entry.white_to_move, source.side_to_move_wdl);
-        get_coefficient_entries(eval_result.coefficients, entry.coefficients, static_cast<int32_t>(parameters.size()));
-#if TAPERED
-        entry.phase = get_phase(fen);
-#endif
-        entry.additional_score = 0;
-        if constexpr (TuneEval::includes_additional_score)
-        {
-            const tune_t score = linear_eval(entry, parameters);
-            if constexpr (print_data_entries)
-            {
-                cout << " Eval: " << score << endl;
-            }
-            entry.additional_score = eval_result.score - score;
-        }
-
-        entries.push_back(entry);
-        
         position_count++;
         if (position_count % data_load_print_interval == 0)
         {
