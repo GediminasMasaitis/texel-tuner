@@ -407,7 +407,7 @@ static void print_parameter(std::stringstream& ss, const tune_t parameter)
 
 static void print_single(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name)
 {
-    ss << "const int " << name << " = ";
+    ss << "const i32 " << name << " = ";
     print_parameter(ss, parameters[index]);
     index++;
 
@@ -416,7 +416,7 @@ static void print_single(std::stringstream& ss, const parameters_t& parameters, 
 
 static void print_array(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name, int count)
 {
-    ss << "const int " << name << "[] = {";
+    ss << "const i32 " << name << "[] = {";
     for (auto i = 0; i < count; i++)
     {
         print_parameter(ss, parameters[index]);
@@ -432,7 +432,7 @@ static void print_array(std::stringstream& ss, const parameters_t& parameters, i
 
 static void print_array_2d(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name, int count1, int count2)
 {
-    ss << "const int " << name << "[][" << count2 << "] = {\n";
+    ss << "const i32 " << name << "[][" << count2 << "] = {\n";
     for (auto i = 0; i < count1; i++)
     {
         ss << "    {";
@@ -453,7 +453,7 @@ static void print_array_2d(std::stringstream& ss, const parameters_t& parameters
 
 static void print_max_material(std::stringstream& ss, const parameters_t& parameters)
 {
-    ss << "const int max_material[] = {";
+    ss << "const i32 max_material[] = {";
     for (auto i = 0; i < 6; i++)
     {
         const auto mg = parameters[i][static_cast<int>(PhaseStages::Midgame)];
