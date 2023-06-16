@@ -2,6 +2,7 @@
 #define BASE_H
 
 #include <array>
+#include <cstdint>
 #include <vector>
 
 #define TAPERED 1
