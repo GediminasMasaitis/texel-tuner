@@ -633,7 +633,7 @@ static void update_single_gradient(parameters_t& gradient, const Entry& entry, c
 
 #if TAPERED
     const auto mg_base = res * (entry.phase / static_cast<tune_t>(24));
-    const auto eg_base = res * (1 - mg_base);
+    const auto eg_base = res - mg_base;
 #endif
 
     for (const auto& coefficient : entry.coefficients)
