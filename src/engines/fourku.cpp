@@ -13,6 +13,7 @@ using namespace std;
 using namespace Fourku;
 
 using u64 = uint64_t;
+using i32 = int;
 
 enum
 {
@@ -201,7 +202,7 @@ struct Trace
     int material[6][2]{};
     int pst_rank[6][8][2]{};
     int pst_file[6][8][2]{};
-    int open_files[2][3][2]{};
+    int open_files[2][5][2]{};
     int pawn_protection[6][2]{};
     int passers[4][2]{};
     int pawn_doubled[2]{};
@@ -213,39 +214,39 @@ struct Trace
     int king_shield[2][2]{};
 };
 
-const int phases[] = { 0, 1, 1, 2, 4, 0 };
-const int max_material[] = { 127, 392, 429, 744, 1344, 0, 0 };
-const int material[] = { S(90, 124), S(384, 393), S(404, 431), S(515, 747), S(1174, 1348), 0 };
-const int pst_rank[][8] = {
-    {0, S(-6, 1), S(-5, -1), S(-1, -3), S(4, -1), S(8, 5), 0, 0},
-    {S(-9, -8), S(-4, -3), 0, S(4, 7), S(9, 8), S(18, 1), S(9, -3), S(-28, -3)},
-    {S(-7, -4), S(-1, -4), S(2, 0), S(3, 3), S(5, 4), S(10, 1), S(2, 0), S(-14, 0)},
-    {S(-5, -2), S(-9, -4), S(-8, -4), S(-7, 1), S(0, 2), S(6, 1), S(9, 3), S(14, 3)},
-    {S(-2, -14), S(0, -21), S(0, -11), S(-1, 4), S(-1, 11), S(5, 8), S(-4, 13), S(4, 9)},
-    {S(-4, -7), S(-4, 1), S(-3, 2), S(-4, 5), S(0, 6), S(20, 4), S(11, 2), S(-1, -5)},
+const i32 phases[] = { 0, 1, 1, 2, 4, 0 };
+const i32 max_material[] = { 125, 407, 441, 766, 1465, 0, 0 };
+const i32 material[] = { S(106, 125), S(374, 407), S(388, 441), S(488, 766), S(970, 1465), 0 };
+const i32 pst_rank[][8] = {
+    {0, S(-3, 0), S(-3, -1), S(-1, -1), S(2, 0), S(6, 2), 0, 0},
+    {S(-6, -5), S(-3, -1), S(-1, 0), S(2, 3), S(5, 4), S(11, 1), S(6, -1), S(-13, -1)},
+    {S(-5, -2), S(-1, -1), S(1, 0), S(2, 1), S(3, 2), S(7, 0), S(2, 0), S(-9, 0)},
+    {S(-3, -2), S(-4, -3), S(-5, -2), S(-4, 0), S(0, 1), S(3, 1), S(5, 2), S(8, 1)},
+    {S(-2, -8), S(0, -10), S(0, -6), S(-1, 2), S(-1, 6), S(3, 4), S(-1, 7), S(4, 4)},
+    {S(0, -5), S(0, -1), S(-2, 0), S(-5, 2), S(-2, 3), S(6, 2), S(4, 1), S(2, -4)},
 };
-const int pst_file[][8] = {
-    {S(-3, 1), S(-2, 1), S(-2, 0), S(1, -3), S(2, 0), S(4, 0), S(4, 1), S(-4, 0)},
-    {S(-9, -9), S(-2, -2), S(1, 3), S(3, 7), S(3, 6), S(4, 3), S(2, -1), S(-3, -6)},
-    {S(-5, -4), S(0, -1), S(1, 1), S(0, 2), S(0, 3), S(0, 2), S(4, 2), S(0, -4)},
-    {S(-2, 0), S(-3, 1), S(-1, 2), S(1, 0), S(1, 0), S(2, 0), S(3, -1), S(0, -2)},
-    {S(-5, -11), S(-1, -8), S(0, -3), S(-1, 5), S(-2, 6), S(1, 5), S(6, 1), S(3, 4)},
-    {S(-1, -6), S(4, -2), S(-4, 2), S(-12, 5), S(-9, 4), S(-5, 3), S(4, 0), S(5, -7)},
+const i32 pst_file[][8] = {
+    {S(-2, 0), S(-1, 1), S(-1, 0), S(0, -1), S(1, 0), S(2, 0), S(3, 0), S(-2, 0)},
+    {S(-6, -4), S(-2, -1), S(1, 2), S(2, 3), S(2, 3), S(3, 1), S(1, -1), S(-2, -4)},
+    {S(-3, -2), 0, 0, S(0, 1), S(0, 2), S(0, 1), S(2, 0), S(-1, -2)},
+    {S(-2, 0), S(-2, 1), S(-1, 1), 0, S(1, -1), S(2, 0), S(2, 0), S(-1, -1)},
+    {S(-4, -4), S(-2, -3), S(-1, 0), S(0, 2), S(0, 3), S(1, 3), S(3, 0), S(2, 0)},
+    {S(-1, -3), S(2, -1), S(-2, 1), S(-4, 2), S(-5, 2), S(-2, 1), S(2, 0), S(2, -3)},
 };
-const int open_files[][3] = {
-    {S(25, 17), S(2, 27), S(-20, 3)},
-    {S(52, 11), S(-1, 29), S(-54, -8)},
+const i32 open_files[][5] = {
+    {0,0,S(28, 18), S(5, 22), S(-25, 7)},
+    {0,0,S(58, 10), S(-7, 38), S(-69, -4)},
 };
-const int pawn_protection[] = { S(20, 17), S(4, 20), S(1, 11), S(8, 8), S(-9, 16), S(-35, 22) };
-const int passers[] = { S(-24, 17), S(-12, 49), S(7, 116), S(133, 235) };
-const int pawn_passed_protected = S(15, 17);
-const int pawn_doubled = S(-15, -27);
-const int pawn_phalanx = S(10, 17);
-const int pawn_passed_blocked[] = { S(-7, -16), S(6, -35), S(-2, -68), S(26, -106) };
-const int pawn_passed_king_distance[] = { S(3, -6), S(-3, 9) };
-const int bishop_pair = S(23, 69);
-const int king_shield[] = { S(32, -8), S(24, -7) };
-const int pawn_attacked[] = { S(-64, -14), S(-155, -142) };
+const i32 pawn_protection[] = { S(26, 14), S(5, 16), S(2, 8), S(10, 5), S(-10, 12), S(-34, 23) };
+const i32 passers[] = { S(-10, 15), S(14, 45), S(43, 109), S(192, 196) };
+const i32 pawn_passed_protected = S(15, 18);
+const i32 pawn_doubled = S(-16, -30);
+const i32 pawn_phalanx = S(12, 13);
+const i32 pawn_passed_blocked[] = { S(-7, -19), S(9, -42), S(11, -78), S(21, -101) };
+const i32 pawn_passed_king_distance[] = { S(2, -6), S(-4, 10) };
+const i32 bishop_pair = S(34, 64);
+const i32 king_shield[] = { S(42, -10), S(31, -8) };
+const i32 pawn_attacked[] = { S(-64, -14), S(-155, -142) };
 
 #define TraceIncr(parameter) trace.parameter[color]++
 #define TraceAdd(parameter, count) trace.parameter[color] += count
@@ -344,9 +345,9 @@ static Trace eval(Position& pos) {
 
                     // Open or semi-open files
                     const u64 file_bb = 0x101010101010101ULL << file;
-                    if (p > Bishop && !(file_bb & pawns[0])) {
-                        score += open_files[!(file_bb & pawns[1])][p - 3];
-                        TraceIncr(open_files[!(file_bb & pawns[1])][p - 3]);
+                    if (!(file_bb & pawns[0])) {
+                        score += open_files[!(file_bb & pawns[1])][p - 1];
+                        TraceIncr(open_files[!(file_bb & pawns[1])][p - 1]);
                     }
 
                     if (p == King && piece_bb & 0xC3D7) {
@@ -504,7 +505,7 @@ parameters_t FourkuEval::get_initial_parameters()
     get_initial_parameter_array(parameters, material, 6);
     get_initial_parameter_array_2d(parameters, pst_rank, 6, 8);
     get_initial_parameter_array_2d(parameters, pst_file, 6, 8);
-    get_initial_parameter_array_2d(parameters, open_files, 2, 3);
+    get_initial_parameter_array_2d(parameters, open_files, 2, 5);
     get_initial_parameter_array(parameters, pawn_protection, 6);
     get_initial_parameter_array(parameters, passers, 4);
     get_initial_parameter_single(parameters, pawn_passed_protected);
@@ -523,7 +524,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.material, 6);
     get_coefficient_array_2d(coefficients, trace.pst_rank, 6, 8);
     get_coefficient_array_2d(coefficients, trace.pst_file, 6, 8);
-    get_coefficient_array_2d(coefficients, trace.open_files, 2, 3);
+    get_coefficient_array_2d(coefficients, trace.open_files, 2, 5);
     get_coefficient_array(coefficients, trace.pawn_protection, 6);
     get_coefficient_array(coefficients, trace.passers, 4);
     get_coefficient_single(coefficients, trace.pawn_passed_protected);
@@ -548,7 +549,7 @@ void FourkuEval::print_parameters(const parameters_t& parameters)
     print_array(ss, parameters_copy, index, "material", 6);
     print_array_2d(ss, parameters_copy, index, "pst_rank", 6, 8);
     print_array_2d(ss, parameters_copy, index, "pst_file", 6, 8);
-    print_array_2d(ss, parameters_copy, index, "open_files", 2, 3);
+    print_array_2d(ss, parameters_copy, index, "open_files", 2, 5);
     print_array(ss, parameters_copy, index, "pawn_protection", 6);
     print_array(ss, parameters_copy, index, "passers", 4);
     print_single(ss, parameters_copy, index, "pawn_passed_protected");
