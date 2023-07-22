@@ -198,6 +198,7 @@ static void set_fen(Position& pos, const string& fen) {
 struct Trace
 {
     int score;
+    tune_t endgame_scale;
 
     int material[6][2]{};
     int pst_rank[6][8][2]{};
@@ -371,7 +372,19 @@ static Trace eval(Position& pos) {
     }
 
     // Tapered eval
+
+    int stronger_colour = score < 0;
+    auto stronger_colour_pieces = pos.colour[stronger_colour];
+    auto stronger_colour_pawns = stronger_colour_pieces & pos.pieces[Pawn];
+    auto stronger_colour_pawn_count = count(stronger_colour_pawns);
+    auto scale = (16 + stronger_colour_pawn_count) / static_cast<tune_t>(24);
+
+    //trace.endgame_scale = 1;
     trace.score = ((short)score * phase + ((score + 0x8000) >> 16) * (24 - phase)) / 24;
+        
+    //trace.endgame_scale = scale;
+    //trace.score = ((short)score * phase + ((score + 0x8000) >> 16) * scale * (24 - phase)) / 24;
+
     if (pos.flipped)
     {
         trace.score = -trace.score;
@@ -616,6 +629,7 @@ EvalResult FourkuEval::get_fen_eval_result(const string& fen)
     EvalResult result;
     result.coefficients = get_coefficients(trace);
     result.score = trace.score;
+    result.endgame_scale = trace.endgame_scale;
     return result;
 }
 
@@ -626,5 +640,7 @@ EvalResult FourkuEval::get_external_eval_result(const Chess::Board& board)
     EvalResult result;
     result.coefficients = get_coefficients(trace);
     result.score = trace.score;
+    result.endgame_scale = trace.endgame_scale;
+
     return result;
 }

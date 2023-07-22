@@ -39,6 +39,7 @@ struct Entry
     tune_t additional_score;
 #if TAPERED
     int32_t phase;
+    tune_t endgame_scale;
 #endif
 };
 
@@ -141,7 +142,7 @@ static tune_t linear_eval(const Entry& entry, const parameters_t& parameters)
     for (const auto& coefficient : entry.coefficients)
     {
         midgame += coefficient.value * parameters[coefficient.index][static_cast<int32_t>(PhaseStages::Midgame)];
-        endgame += coefficient.value * parameters[coefficient.index][static_cast<int32_t>(PhaseStages::Endgame)];
+        endgame += coefficient.value * parameters[coefficient.index][static_cast<int32_t>(PhaseStages::Endgame)] * entry.endgame_scale;
     }
     score += (midgame * entry.phase + endgame * (24 - entry.phase)) / 24;
 #else
@@ -346,6 +347,7 @@ static tune_t quiescence(Chess::Board& board, const parameters_t& parameters, pv
 
     Entry entry;
     entry.white_to_move = board.sideToMove() == Chess::Color::WHITE;
+    entry.endgame_scale = eval_result.endgame_scale;
     get_coefficient_entries(eval_result.coefficients, entry.coefficients, static_cast<int32_t>(parameters.size()));
 #if TAPERED
     entry.phase = get_phase(board);
@@ -498,6 +500,7 @@ static void load_fen(const DataSource& source, const parameters_t& parameters, c
 
     Entry entry;
     entry.white_to_move = get_fen_color_to_move(fen);
+    entry.endgame_scale = eval_result.endgame_scale;
     const bool original_white_to_move = get_fen_color_to_move(original_fen);
     //cout << (entry.white_to_move ? "w" : "b") << " ";
     entry.wdl = get_fen_wdl(original_fen, original_white_to_move, entry.white_to_move, source.side_to_move_wdl);
@@ -640,7 +643,7 @@ static void update_single_gradient(parameters_t& gradient, const Entry& entry, c
     {
 #if TAPERED
         gradient[coefficient.index][static_cast<int32_t>(PhaseStages::Midgame)] += mg_base * coefficient.value;
-        gradient[coefficient.index][static_cast<int32_t>(PhaseStages::Endgame)] += eg_base * coefficient.value;
+        gradient[coefficient.index][static_cast<int32_t>(PhaseStages::Endgame)] += eg_base * coefficient.value * entry.endgame_scale;
 #else
         gradient[coefficient.index] += res * coefficient.value;
 #endif
