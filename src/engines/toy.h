@@ -2,6 +2,7 @@
 #define TOY_H 1
 
 #include "../base.h"
+#include "../external/chess.hpp"
 
 #include <string>
 #include <vector>

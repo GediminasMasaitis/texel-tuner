@@ -347,7 +347,9 @@ static tune_t quiescence(Chess::Board& board, const parameters_t& parameters, pv
 
     Entry entry;
     entry.white_to_move = board.sideToMove() == Chess::Color::WHITE;
+#if TAPERED
     entry.endgame_scale = eval_result.endgame_scale;
+#endif
     get_coefficient_entries(eval_result.coefficients, entry.coefficients, static_cast<int32_t>(parameters.size()));
 #if TAPERED
     entry.phase = get_phase(board);
@@ -500,7 +502,9 @@ static void load_fen(const DataSource& source, const parameters_t& parameters, c
 
     Entry entry;
     entry.white_to_move = get_fen_color_to_move(fen);
+#if TAPERED
     entry.endgame_scale = eval_result.endgame_scale;
+#endif
     const bool original_white_to_move = get_fen_color_to_move(original_fen);
     //cout << (entry.white_to_move ? "w" : "b") << " ";
     entry.wdl = get_fen_wdl(original_fen, original_white_to_move, entry.white_to_move, source.side_to_move_wdl);
