@@ -352,7 +352,7 @@ static tune_t quiescence(Chess::Board& board, const parameters_t& parameters, pv
 #endif
     get_coefficient_entries(eval_result.coefficients, entry.coefficients, static_cast<int32_t>(parameters.size()));
 #if TAPERED
-    entry.phase = get_phase(board);
+    entry.phase = std::min(get_phase(board), 24);
 #endif
     entry.additional_score = 0;
     tune_t eval = linear_eval(entry, parameters);
@@ -510,7 +510,7 @@ static void load_fen(const DataSource& source, const parameters_t& parameters, c
     entry.wdl = get_fen_wdl(original_fen, original_white_to_move, entry.white_to_move, source.side_to_move_wdl);
     get_coefficient_entries(eval_result.coefficients, entry.coefficients, static_cast<int32_t>(parameters.size()));
 #if TAPERED
-    entry.phase = get_phase(fen);
+    entry.phase = std::min(get_phase(fen), 24);
 #endif
     entry.additional_score = 0;
     if constexpr (TuneEval::includes_additional_score)
