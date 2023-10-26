@@ -12,7 +12,7 @@
 using TuneEval = Fourku::FourkuEval;
 constexpr int32_t thread_count = 12;
 constexpr double preferred_k = 2.1;
-constexpr int32_t max_epoch = 3001;
+constexpr int32_t max_epoch = 2001;
 constexpr bool retune_from_zero = true;
 constexpr bool enable_qsearch = true;
 constexpr bool print_data_entries = false;
