@@ -12,3 +12,4 @@ CMakeCache.txt
 cmake_install.cmake
 Makefile
 sources.csv
+src/tuner.exe
