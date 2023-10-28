@@ -207,10 +207,10 @@ struct Trace
     int mobilities[5][2]{};
     int pawn_protection[6][2]{};
     int passers[4][2]{};
-    int pawn_doubled_malus[2]{};
+    int pawn_doubled_penalty[2]{};
     int pawn_phalanx[2]{};
     int pawn_passed_protected[2]{};
-    int pawn_passed_blocked_malus[4][2]{};
+    int pawn_passed_blocked_penalty[4][2]{};
     int pawn_passed_king_distance[2][2]{};
     int bishop_pair[2]{};
     int king_shield[2][2]{};
@@ -243,13 +243,13 @@ const i32 mobilities[] = {S(9, 5), S(8, 7), S(4, 4), S(4, 3), S(-5, -1)};
 const i32 pawn_protection[] = {S(24, 14), S(2, 16), S(8, 17), S(9, 8), S(-5, 23), S(-34, 26)};
 const i32 passers[] = {S(0, 15), S(29, 52), S(63, 126), S(209, 210)};
 const i32 pawn_passed_protected = S(13, 20);
-const i32 pawn_doubled_malus = S(14, 38);
+const i32 pawn_doubled_penalty = S(14, 38);
 const i32 pawn_phalanx = S(13, 12);
-const i32 pawn_passed_blocked_malus[] = {S(10, 14), S(-5, 43), S(-9, 86), S(3, 101)};
+const i32 pawn_passed_blocked_penalty[] = {S(10, 14), S(-5, 43), S(-9, 86), S(3, 101)};
 const i32 pawn_passed_king_distance[] = {S(1, -6), S(-4, 11)};
 const i32 bishop_pair = S(31, 72);
 const i32 king_shield[] = {S(35, -12), S(28, -8)};
-const i32 pawn_attacked_malus[] = {S(64, 14), S(155, 142)};
+const i32 pawn_attacked_penalty[] = {S(64, 14), S(155, 142)};
 
 #define TraceIncr(parameter) trace.parameter[color]++
 #define TraceAdd(parameter, count) trace.parameter[color] += count
@@ -276,8 +276,8 @@ static Trace eval(Position& pos) {
         }
 
         // Doubled pawns
-        score -= pawn_doubled_malus * count((north(pawns[0]) | north(north(pawns[0]))) & pawns[0]);
-        TraceAdd(pawn_doubled_malus, -count((north(pawns[0]) | north(north(pawns[0]))) & pawns[0]));
+        score -= pawn_doubled_penalty * count((north(pawns[0]) | north(north(pawns[0]))) & pawns[0]);
+        TraceAdd(pawn_doubled_penalty, -count((north(pawns[0]) | north(north(pawns[0]))) & pawns[0]));
 
         // Phalanx pawns
         score += pawn_phalanx * count(west(pawns[0]) & pawns[0]);
@@ -327,8 +327,8 @@ static Trace eval(Position& pos) {
 
                         // Blocked passed pawns
                         if (north(piece_bb) & pos.colour[1]) {
-                            score -= pawn_passed_blocked_malus[rank - 3];
-                            TraceAdd(pawn_passed_blocked_malus[rank - 3], -1);
+                            score -= pawn_passed_blocked_penalty[rank - 3];
+                            TraceAdd(pawn_passed_blocked_penalty[rank - 3], -1);
                         }
 
                         // King defense/attack
@@ -344,7 +344,7 @@ static Trace eval(Position& pos) {
                     if (piece_bb & attacked_by_pawns) {
                         // If we're to move, we'll just lose some options and our tempo.
                         // If we're not to move, we lose a piece?
-                        score -= pawn_attacked_malus[c];
+                        score -= pawn_attacked_penalty[c];
                     }
 
                     // Open or semi-open files
@@ -541,9 +541,9 @@ parameters_t FourkuEval::get_initial_parameters()
     get_initial_parameter_array(parameters, pawn_protection, 6);
     get_initial_parameter_array(parameters, passers, 4);
     get_initial_parameter_single(parameters, pawn_passed_protected);
-    get_initial_parameter_single(parameters, pawn_doubled_malus);
+    get_initial_parameter_single(parameters, pawn_doubled_penalty);
     get_initial_parameter_single(parameters, pawn_phalanx);
-    get_initial_parameter_array(parameters, pawn_passed_blocked_malus, 4);
+    get_initial_parameter_array(parameters, pawn_passed_blocked_penalty, 4);
     get_initial_parameter_array(parameters, pawn_passed_king_distance, 2);
     get_initial_parameter_single(parameters, bishop_pair);
     get_initial_parameter_array(parameters, king_shield, 2);
@@ -561,9 +561,9 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.pawn_protection, 6);
     get_coefficient_array(coefficients, trace.passers, 4);
     get_coefficient_single(coefficients, trace.pawn_passed_protected);
-    get_coefficient_single(coefficients, trace.pawn_doubled_malus);
+    get_coefficient_single(coefficients, trace.pawn_doubled_penalty);
     get_coefficient_single(coefficients, trace.pawn_phalanx);
-    get_coefficient_array(coefficients, trace.pawn_passed_blocked_malus, 4);
+    get_coefficient_array(coefficients, trace.pawn_passed_blocked_penalty, 4);
     get_coefficient_array(coefficients, trace.pawn_passed_king_distance, 2);
     get_coefficient_single(coefficients, trace.bishop_pair);
     get_coefficient_array(coefficients, trace.king_shield, 2);
@@ -587,9 +587,9 @@ void FourkuEval::print_parameters(const parameters_t& parameters)
     print_array(ss, parameters_copy, index, "pawn_protection", 6);
     print_array(ss, parameters_copy, index, "passers", 4);
     print_single(ss, parameters_copy, index, "pawn_passed_protected");
-    print_single(ss, parameters_copy, index, "pawn_doubled_malus");
+    print_single(ss, parameters_copy, index, "pawn_doubled_penalty");
     print_single(ss, parameters_copy, index, "pawn_phalanx");
-    print_array(ss, parameters_copy, index, "pawn_passed_blocked_malus", 4);
+    print_array(ss, parameters_copy, index, "pawn_passed_blocked_penalty", 4);
     print_array(ss, parameters_copy, index, "pawn_passed_king_distance", 2);
     print_single(ss, parameters_copy, index, "bishop_pair");
     print_array(ss, parameters_copy, index, "king_shield", 2);
