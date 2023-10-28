@@ -481,7 +481,7 @@ string quiescence_root(const parameters_t& parameters, const string& initial_fen
     return result_fen;
 }
 
-static void parse_fen(const bool side_to_move_wdl, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries, const string& original_fen)
+static void parse_fen(const bool side_to_move_wdl, const parameters_t& parameters, vector<Entry>& entries, const string& original_fen)
 {
     if constexpr (print_data_entries)
     {
@@ -563,33 +563,82 @@ static void read_fens(const DataSource& source, const high_resolution_clock::tim
     std::cout << "Read " << fens.size() << " positions from " << source.path << endl;
 }
 
-static void parse_fens(const DataSource& source, const vector<string>& fens, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries)
+static void parse_fens(ThreadPool& thread_pool, const DataSource& source, const vector<string>& fens, const parameters_t& parameters, const high_resolution_clock::time_point time_start, vector<Entry>& entries)
 {
     cout << "Parsing " << fens.size() << " positions..." << endl;
-
-    int64_t position_count = 0;
-    for(const auto& original_fen : fens)
+    array<vector<Entry>, thread_count> thread_entries;
+    const auto side_to_move_wdl = source.side_to_move_wdl;
+    constexpr int batch_size = 10000;
+    mutex mut;
+    queue<vector<string>> batches;
+    vector<string> current_batch;
+    for(const auto& fen : fens)
     {
-
-        parse_fen(source.side_to_move_wdl, parameters, start, entries, original_fen);
-
-        position_count++;
-        if (position_count % data_load_print_interval == 0)
+        current_batch.push_back(fen);
+        if (current_batch.size() == batch_size)
         {
-            print_elapsed(start);
-            std::cout << "Parsed " << position_count << " positions..." << endl;
+            batches.emplace(current_batch);
+            current_batch.clear();
         }
     }
+    if(!current_batch.empty())
+    {
+        batches.emplace(current_batch);
+    }
 
-    print_elapsed(start);
-    std::cout << "Parsed " << position_count << " positions from " << source.path << ", " << entries.size() << " total" << endl;
+    for (int thread_id = 0; thread_id < data_load_thread_count; thread_id++)
+    {
+        thread_pool.enqueue([thread_id, &thread_entries, &mut, side_to_move_wdl, parameters, &batches, time_start]()
+        {
+            vector<Entry> entries;
+
+            int position_count = 0;
+            while(true)
+            {
+                vector<string> thread_batch;
+                {
+                    lock_guard lock(mut);
+                    if(batches.empty())
+                    {
+                        break;
+                    }
+                    thread_batch = batches.front();
+                    batches.pop();
+                }
+
+                constexpr auto thread_data_load_print_interval = data_load_print_interval / data_load_thread_count;
+                for(auto& fen : thread_batch)
+                {
+                    parse_fen(side_to_move_wdl, parameters, entries, fen);
+                    position_count++;
+                    if (thread_id == 0 && position_count % thread_data_load_print_interval == 0)
+                    {
+                        print_elapsed(time_start);
+                        std::cout << "Parsed ~" << position_count * data_load_thread_count << " positions..." << endl;
+                    }
+                }
+            }
+
+            thread_entries[thread_id] = entries;
+        });
+    }
+
+    thread_pool.wait_for_completion();
+
+    for (int thread_id = 0; thread_id < data_load_thread_count; thread_id++)
+    {
+        for(const Entry& entry : thread_entries[thread_id])
+        {
+            entries.push_back(entry);
+        }
+    }
 }
 
-static void load_fens(const DataSource& source, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries)
+static void load_fens(ThreadPool& thread_pool, const DataSource& source, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries)
 {
     vector<string> fens;
     read_fens(source, start, fens);
-    parse_fens(source, fens, parameters, start, entries);
+    parse_fens(thread_pool, source, fens, parameters, start, entries);
 }
 
 static tune_t sigmoid(const tune_t K, const tune_t eval)
@@ -745,7 +794,7 @@ void Tuner::run(const std::vector<DataSource>& sources)
     vector<string> fens;
     for (const auto& source : sources)
     {
-        load_fens(source, parameters, start, entries);
+        load_fens(thread_pool, source, parameters, start, entries);
     }
     cout << "Data loading complete" << endl << endl;
 

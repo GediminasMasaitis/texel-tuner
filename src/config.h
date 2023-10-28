@@ -10,6 +10,7 @@
 //using TuneEval = Toy::ToyEval;
 //using TuneEval = Toy::ToyEvalTapered;
 using TuneEval = Fourku::FourkuEval;
+constexpr int32_t data_load_thread_count = 4;
 constexpr int32_t thread_count = 12;
 constexpr double preferred_k = 2.1;
 constexpr int32_t max_epoch = 2001;
