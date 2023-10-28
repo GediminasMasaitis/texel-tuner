@@ -481,7 +481,7 @@ string quiescence_root(const parameters_t& parameters, const string& initial_fen
     return result_fen;
 }
 
-static void load_fen(const DataSource& source, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries, const string& original_fen)
+static void parse_fen(const bool side_to_move_wdl, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries, const string& original_fen)
 {
     if constexpr (print_data_entries)
     {
@@ -507,7 +507,7 @@ static void load_fen(const DataSource& source, const parameters_t& parameters, c
 #endif
     const bool original_white_to_move = get_fen_color_to_move(original_fen);
     //cout << (entry.white_to_move ? "w" : "b") << " ";
-    entry.wdl = get_fen_wdl(original_fen, original_white_to_move, entry.white_to_move, source.side_to_move_wdl);
+    entry.wdl = get_fen_wdl(original_fen, original_white_to_move, entry.white_to_move, side_to_move_wdl);
     get_coefficient_entries(eval_result.coefficients, entry.coefficients, static_cast<int32_t>(parameters.size()));
 #if TAPERED
     entry.phase = get_phase(fen);
@@ -526,26 +526,25 @@ static void load_fen(const DataSource& source, const parameters_t& parameters, c
     entries.push_back(entry);
 }
 
-static void load_fens(const DataSource& source, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries)
+static void read_fens(const DataSource& source, const high_resolution_clock::time_point start, vector<string>& fens)
 {
-    cout << "Loading " << source.path;
-    if(source.position_limit > 0)
+    cout << "Reading " << source.path;
+    if (source.position_limit > 0)
     {
         cout << " (" << source.position_limit << " positions)";
     }
     cout << "..." << endl;
 
     ifstream file(source.path);
-    if(!file)
+    if (!file)
     {
         cout << "Failed to open " << source.path << endl;
         throw runtime_error("Failed to open data source");
     }
 
-    int64_t position_count = 0;
     while (!file.eof())
     {
-        if (source.position_limit > 0 && position_count >= source.position_limit)
+        if (source.position_limit > 0 && fens.size() >= source.position_limit)
         {
             break;
         }
@@ -557,18 +556,40 @@ static void load_fens(const DataSource& source, const parameters_t& parameters, 
             break;
         }
 
-        load_fen(source, parameters, start, entries, original_fen);
+        fens.push_back(original_fen);
+    }
+
+    print_elapsed(start);
+    std::cout << "Read " << fens.size() << " positions from " << source.path << endl;
+}
+
+static void parse_fens(const DataSource& source, const vector<string>& fens, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries)
+{
+    cout << "Parsing " << fens.size() << " positions..." << endl;
+
+    int64_t position_count = 0;
+    for(const auto& original_fen : fens)
+    {
+
+        parse_fen(source.side_to_move_wdl, parameters, start, entries, original_fen);
 
         position_count++;
         if (position_count % data_load_print_interval == 0)
         {
             print_elapsed(start);
-            std::cout << "Loaded " << position_count << " entries..." << std::endl;
+            std::cout << "Parsed " << position_count << " positions..." << endl;
         }
     }
 
     print_elapsed(start);
-    std::cout << "Loaded " << position_count << " entries from " << source.path << ", " << entries.size() << " total" << std::endl;
+    std::cout << "Parsed " << position_count << " positions from " << source.path << ", " << entries.size() << " total" << endl;
+}
+
+static void load_fens(const DataSource& source, const parameters_t& parameters, const high_resolution_clock::time_point start, vector<Entry>& entries)
+{
+    vector<string> fens;
+    read_fens(source, start, fens);
+    parse_fens(source, fens, parameters, start, entries);
 }
 
 static tune_t sigmoid(const tune_t K, const tune_t eval)
@@ -721,6 +742,7 @@ void Tuner::run(const std::vector<DataSource>& sources)
     //debug_entry.initial_eval = linear_eval(debug_entry, parameters);
     //entries.push_back(debug_entry);
 
+    vector<string> fens;
     for (const auto& source : sources)
     {
         load_fens(source, parameters, start, entries);
