@@ -437,9 +437,8 @@ static tune_t quiescence(Chess::Board& board, const parameters_t& parameters, pv
     return best_score;
 }
 
-string quiescence_root(const parameters_t& parameters, const string& initial_fen)
+string cleanup_fen(const string& initial_fen)
 {
-    pv_table_t pv_table {};
     int space_count = 0;
     size_t pos = 0;
     for (size_t i = 0; i < initial_fen.size(); ++i) {
@@ -452,7 +451,13 @@ string quiescence_root(const parameters_t& parameters, const string& initial_fen
         }
     }
     const auto clean_fen = initial_fen.substr(0, pos);
+    return clean_fen;
+}
 
+Chess::Board quiescence_root(const parameters_t& parameters, const string& initial_fen)
+{
+    pv_table_t pv_table {};
+    const auto clean_fen = cleanup_fen(initial_fen);
     auto board = Chess::Board(clean_fen);
     auto score = quiescence(board, parameters, pv_table, -inf, inf, 0);
     if(board.sideToMove() == Chess::Color::BLACK)
@@ -477,8 +482,7 @@ string quiescence_root(const parameters_t& parameters, const string& initial_fen
         board.makeMove(pv_table[0].moves[pv_index]);
     }
 
-    auto result_fen = board.getFen();
-    return result_fen;
+    return board;
 }
 
 static void parse_fen(const bool side_to_move_wdl, const parameters_t& parameters, vector<Entry>& entries, const string& original_fen)
@@ -488,20 +492,32 @@ static void parse_fen(const bool side_to_move_wdl, const parameters_t& parameter
         //cout << fen;
     }
 
-    string fen;
+    //string fen;
+    Chess::Board board;
     if constexpr (enable_qsearch)
     {
-        fen = quiescence_root(parameters, original_fen);
+        board = quiescence_root(parameters, original_fen);
     }
     else
     {
-        fen = original_fen;
+        const auto clean_fen = cleanup_fen(original_fen);
+        board = Chess::Board(clean_fen);
     }
 
-    const auto eval_result = TuneEval::get_fen_eval_result(fen);
+    EvalResult eval_result;
+    if constexpr (TuneEval::supports_external_chess_eval)
+    {
+        eval_result = TuneEval::get_external_eval_result(board);
+    }
+    else
+    {
+        auto fen = board.getFen();
+        eval_result = TuneEval::get_fen_eval_result(fen);
+    }
 
     Entry entry;
-    entry.white_to_move = get_fen_color_to_move(fen);
+    //entry.white_to_move = get_fen_color_to_move(fen);
+    entry.white_to_move = board.sideToMove() == Chess::Color::WHITE;
 #if TAPERED
     entry.endgame_scale = eval_result.endgame_scale;
 #endif
@@ -510,7 +526,7 @@ static void parse_fen(const bool side_to_move_wdl, const parameters_t& parameter
     entry.wdl = get_fen_wdl(original_fen, original_white_to_move, entry.white_to_move, side_to_move_wdl);
     get_coefficient_entries(eval_result.coefficients, entry.coefficients, static_cast<int32_t>(parameters.size()));
 #if TAPERED
-    entry.phase = get_phase(fen);
+    entry.phase = get_phase(board);
 #endif
     entry.additional_score = 0;
     if constexpr (TuneEval::includes_additional_score)
