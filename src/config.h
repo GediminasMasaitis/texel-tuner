@@ -18,7 +18,7 @@ constexpr bool retune_from_zero = true;
 constexpr bool enable_qsearch = true;
 constexpr tune_t initial_learning_rate = 1;
 constexpr int32_t learning_rate_drop_interval = 10000;
-constexpr int32_t learning_rate_drop_ratio = 1;
+constexpr tune_t learning_rate_drop_ratio = 1;
 constexpr bool print_data_entries = false;
 constexpr int32_t data_load_print_interval = 10000;
 
