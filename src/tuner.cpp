@@ -566,7 +566,7 @@ static void read_fens(const DataSource& source, const high_resolution_clock::tim
 static void parse_fens(ThreadPool& thread_pool, const DataSource& source, const vector<string>& fens, const parameters_t& parameters, const high_resolution_clock::time_point time_start, vector<Entry>& entries)
 {
     cout << "Parsing " << fens.size() << " positions..." << endl;
-    array<vector<Entry>, thread_count> thread_entries;
+    array<vector<Entry>, data_load_thread_count> thread_entries;
     const auto side_to_move_wdl = source.side_to_move_wdl;
     constexpr int batch_size = 10000;
     mutex mut;
@@ -833,7 +833,7 @@ void Tuner::run(const std::vector<DataSource>& sources)
     cout << "Initial error = " << avg_error << endl;
 
     const auto loop_start = high_resolution_clock::now();
-    tune_t learning_rate = 1;
+    tune_t learning_rate = initial_learning_rate;
     int32_t max_tune_epoch = max_epoch;
 #if TAPERED
     parameters_t momentum(parameters.size(), pair_t{});
@@ -842,7 +842,7 @@ void Tuner::run(const std::vector<DataSource>& sources)
     parameters_t momentum(parameters.size(), 0);
     parameters_t velocity(parameters.size(), 0);
 #endif
-    for (int epoch = 1; epoch < max_tune_epoch; epoch++)
+    for (int32_t epoch = 1; epoch < max_tune_epoch; epoch++)
     {
 #if TAPERED
         parameters_t gradient(parameters.size(), pair_t{});
@@ -883,11 +883,9 @@ void Tuner::run(const std::vector<DataSource>& sources)
             TuneEval::print_parameters(parameters);
         }
 
-        constexpr int lr_drop_interval = 10000;
-        constexpr tune_t lr_drop_ratio = 1;
-        if(epoch % lr_drop_interval == 0)
+        if(epoch % learning_rate_drop_interval == 0)
         {
-            learning_rate *= lr_drop_ratio;
+            learning_rate *= learning_rate_drop_ratio;
         }
     }
 
