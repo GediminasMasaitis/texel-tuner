@@ -629,28 +629,28 @@ void FourkuEval::print_parameters(const parameters_t& parameters)
     cout << ss.str() << "\n";
 }
 
-Position get_position_from_external(const Chess::Board& board)
+Position get_position_from_external(const chess::Board& board)
 {
     Position position;
 
     position.flipped = false;
 
-    position.colour[0] = board.us(Chess::Color::WHITE);
-    position.colour[1] = board.them(Chess::Color::WHITE);
+    position.colour[0] = board.us(chess::Color::WHITE);
+    position.colour[1] = board.them(chess::Color::WHITE);
 
-    position.pieces[Pawn] = board.pieces(Chess::PieceType::PAWN, Chess::Color::WHITE) | board.pieces(Chess::PieceType::PAWN, Chess::Color::BLACK);
-    position.pieces[Knight] = board.pieces(Chess::PieceType::KNIGHT, Chess::Color::WHITE) | board.pieces(Chess::PieceType::KNIGHT, Chess::Color::BLACK);
-    position.pieces[Bishop] = board.pieces(Chess::PieceType::BISHOP, Chess::Color::WHITE) | board.pieces(Chess::PieceType::BISHOP, Chess::Color::BLACK);
-    position.pieces[Rook] = board.pieces(Chess::PieceType::ROOK, Chess::Color::WHITE) | board.pieces(Chess::PieceType::ROOK, Chess::Color::BLACK);
-    position.pieces[Queen] = board.pieces(Chess::PieceType::QUEEN, Chess::Color::WHITE) | board.pieces(Chess::PieceType::QUEEN, Chess::Color::BLACK);
-    position.pieces[King] = board.pieces(Chess::PieceType::KING, Chess::Color::WHITE) | board.pieces(Chess::PieceType::KING, Chess::Color::BLACK);
+    position.pieces[Pawn] = board.pieces(chess::PieceType::PAWN, chess::Color::WHITE) | board.pieces(chess::PieceType::PAWN, chess::Color::BLACK);
+    position.pieces[Knight] = board.pieces(chess::PieceType::KNIGHT, chess::Color::WHITE) | board.pieces(chess::PieceType::KNIGHT, chess::Color::BLACK);
+    position.pieces[Bishop] = board.pieces(chess::PieceType::BISHOP, chess::Color::WHITE) | board.pieces(chess::PieceType::BISHOP, chess::Color::BLACK);
+    position.pieces[Rook] = board.pieces(chess::PieceType::ROOK, chess::Color::WHITE) | board.pieces(chess::PieceType::ROOK, chess::Color::BLACK);
+    position.pieces[Queen] = board.pieces(chess::PieceType::QUEEN, chess::Color::WHITE) | board.pieces(chess::PieceType::QUEEN, chess::Color::BLACK);
+    position.pieces[King] = board.pieces(chess::PieceType::KING, chess::Color::WHITE) | board.pieces(chess::PieceType::KING, chess::Color::BLACK);
 
-    position.castling[0] = board.castlingRights().hasCastlingRight(Chess::Color::WHITE, Chess::CastleSide::KING_SIDE);
-    position.castling[1] = board.castlingRights().hasCastlingRight(Chess::Color::WHITE, Chess::CastleSide::QUEEN_SIDE);
-    position.castling[2] = board.castlingRights().hasCastlingRight(Chess::Color::BLACK, Chess::CastleSide::KING_SIDE);
-    position.castling[3] = board.castlingRights().hasCastlingRight(Chess::Color::BLACK, Chess::CastleSide::QUEEN_SIDE);
+    position.castling[0] = board.castlingRights().hasCastlingRight(chess::Color::WHITE, chess::CastleSide::KING_SIDE);
+    position.castling[1] = board.castlingRights().hasCastlingRight(chess::Color::WHITE, chess::CastleSide::QUEEN_SIDE);
+    position.castling[2] = board.castlingRights().hasCastlingRight(chess::Color::BLACK, chess::CastleSide::KING_SIDE);
+    position.castling[3] = board.castlingRights().hasCastlingRight(chess::Color::BLACK, chess::CastleSide::QUEEN_SIDE);
 
-    position.ep = board.enpassantSquare();
+    position.ep = board.enpassantSq();
     if(position.ep == 64)
     {
         position.ep = 0;
@@ -660,7 +660,7 @@ Position get_position_from_external(const Chess::Board& board)
         position.ep = 1ULL << position.ep;
     }
 
-    if (board.sideToMove() == Chess::Color::BLACK)
+    if (board.sideToMove() == chess::Color::BLACK)
     {
         flip(position);
     }
@@ -687,7 +687,7 @@ EvalResult FourkuEval::get_fen_eval_result(const string& fen)
     return result;
 }
 
-EvalResult FourkuEval::get_external_eval_result(const Chess::Board& board)
+EvalResult FourkuEval::get_external_eval_result(const chess::Board& board)
 {
     auto position = get_position_from_external(board);
     const auto trace = eval(position);

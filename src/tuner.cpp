@@ -203,27 +203,28 @@ static int32_t get_phase(const string& fen)
     return phase;
 }
 
-static int32_t get_phase(const Chess::Board& board)
+static int32_t get_phase(const chess::Board& board)
 {
     int32_t phase = 0;
 
-    for(Chess::Square square = static_cast<Chess::Square>(0); square < 64; ++square)
+    for(uint8_t square_num = 0; square_num < 64; ++square_num)
     {
-        auto piece = board.pieceAt(square);
+        const auto square = static_cast<chess::Square>(square_num);
+        const auto piece = board.at(square);
         switch (piece)
         {
-        case Chess::Piece::WHITEKNIGHT:
-        case Chess::Piece::WHITEBISHOP:
-        case Chess::Piece::BLACKKNIGHT:
-        case Chess::Piece::BLACKBISHOP:
+        case chess::Piece::WHITEKNIGHT:
+        case chess::Piece::WHITEBISHOP:
+        case chess::Piece::BLACKKNIGHT:
+        case chess::Piece::BLACKBISHOP:
             phase += 1;
             break;
-        case Chess::Piece::WHITEROOK:
-        case Chess::Piece::BLACKROOK:
+        case chess::Piece::WHITEROOK:
+        case chess::Piece::BLACKROOK:
             phase += 2;
             break;
-        case Chess::Piece::WHITEQUEEN:
-        case Chess::Piece::BLACKQUEEN:
+        case chess::Piece::WHITEQUEEN:
+        case chess::Piece::BLACKQUEEN:
             phase += 4;
             break;
         }
@@ -276,52 +277,52 @@ static void print_statistics(const parameters_t& parameters, const vector<Entry>
 constexpr tune_t inf = 1 << 20;
 struct PvEntry
 {
-    array<Chess::Move, 64> moves{};
+    array<chess::Move, 64> moves{};
     int32_t length = 0;
 };
 using pv_table_t = array<PvEntry, 64>;
 
-static int32_t get_piece_value(const Chess::Piece piece)
+static int32_t get_piece_value(const chess::Piece piece)
 {
     switch (piece)
     {
-    case Chess::Piece::WHITEPAWN:
-    case Chess::Piece::BLACKPAWN:
+    case chess::Piece::WHITEPAWN:
+    case chess::Piece::BLACKPAWN:
         return 100;
-    case Chess::Piece::WHITEKNIGHT:
-    case Chess::Piece::BLACKKNIGHT:
+    case chess::Piece::WHITEKNIGHT:
+    case chess::Piece::BLACKKNIGHT:
         return 300;
-    case Chess::Piece::WHITEBISHOP:
-    case Chess::Piece::BLACKBISHOP:
+    case chess::Piece::WHITEBISHOP:
+    case chess::Piece::BLACKBISHOP:
         return 300;
-    case Chess::Piece::WHITEROOK:
-    case Chess::Piece::BLACKROOK:
+    case chess::Piece::WHITEROOK:
+    case chess::Piece::BLACKROOK:
         return 500;
-    case Chess::Piece::WHITEQUEEN:
-    case Chess::Piece::BLACKQUEEN:
+    case chess::Piece::WHITEQUEEN:
+    case chess::Piece::BLACKQUEEN:
         return 900;
-    case Chess::Piece::WHITEKING:
-    case Chess::Piece::BLACKKING:
-    case Chess::Piece::NONE:
+    case chess::Piece::WHITEKING:
+    case chess::Piece::BLACKKING:
+    case chess::Piece::NONE:
         return 0;
         //throw std::runtime_error("Invalid piece for value");
     }
 }
 
-static int32_t mvv_lva(const Chess::Board& board, const Chess::Move move)
+static int32_t mvv_lva(const chess::Board& board, const chess::Move move)
 {
     const auto from = move.from();
     const auto to = move.to();
-    const auto piece = board.pieceAt(from);
-    Chess::Piece takes;
+    const auto piece = board.at(from);
+    chess::Piece takes;
     const auto type = move.typeOf();
-    if(type == Chess::Move::EN_PASSANT)
+    if(type == chess::Move::ENPASSANT)
     {
-        takes = board.sideToMove() == Chess::Color::WHITE ? Chess::Piece::BLACKPAWN : Chess::Piece::WHITEPAWN;
+        takes = board.sideToMove() == chess::Color::WHITE ? chess::Piece::BLACKPAWN : chess::Piece::WHITEPAWN;
     }
     else
     {
-        takes = board.pieceAt(to);
+        takes = board.at(to);
     }
 
     auto score = get_piece_value(takes);
@@ -330,7 +331,7 @@ static int32_t mvv_lva(const Chess::Board& board, const Chess::Move move)
     return score;
 }
 
-static tune_t quiescence(Chess::Board& board, const parameters_t& parameters, pv_table_t& pv_table, tune_t alpha, tune_t beta, const int32_t ply)
+static tune_t quiescence(chess::Board& board, const parameters_t& parameters, pv_table_t& pv_table, tune_t alpha, tune_t beta, const int32_t ply)
 {
     pv_table[ply].length = 0;
 
@@ -346,7 +347,7 @@ static tune_t quiescence(Chess::Board& board, const parameters_t& parameters, pv
     }
 
     Entry entry;
-    entry.white_to_move = board.sideToMove() == Chess::Color::WHITE;
+    entry.white_to_move = board.sideToMove() == chess::Color::WHITE;
 #if TAPERED
     entry.endgame_scale = eval_result.endgame_scale;
 #endif
@@ -371,8 +372,8 @@ static tune_t quiescence(Chess::Board& board, const parameters_t& parameters, pv
         alpha = eval;
     }
 
-    Chess::Movelist<Chess::Move> moves;
-    Chess::Movegen::legalmoves<Chess::Move, Chess::MoveGenType::CAPTURE>(moves, board);
+    chess::Movelist moves;
+    chess::movegen::legalmoves<chess::MoveGenType::CAPTURE>(moves, board);
     array<int32_t, 64> move_scores;
     for (int32_t move_index = 0; move_index < moves.size(); move_index++)
     {
@@ -385,7 +386,7 @@ static tune_t quiescence(Chess::Board& board, const parameters_t& parameters, pv
     }
 
     tune_t best_score = -inf;
-    auto best_move = Chess::Move(Chess::Move::NO_MOVE);
+    auto best_move = chess::Move(chess::Move::NO_MOVE);
     //for (const auto& move : movelist) {
     for(int32_t move_index = 0; move_index < moves.size(); move_index++)
     {
@@ -454,13 +455,13 @@ string cleanup_fen(const string& initial_fen)
     return clean_fen;
 }
 
-Chess::Board quiescence_root(const parameters_t& parameters, const string& initial_fen)
+chess::Board quiescence_root(const parameters_t& parameters, const string& initial_fen)
 {
     pv_table_t pv_table {};
     const auto clean_fen = cleanup_fen(initial_fen);
-    auto board = Chess::Board(clean_fen);
+    auto board = chess::Board(clean_fen);
     auto score = quiescence(board, parameters, pv_table, -inf, inf, 0);
-    if(board.sideToMove() == Chess::Color::BLACK)
+    if(board.sideToMove() == chess::Color::BLACK)
     {
         score = -score;
     }
@@ -493,7 +494,7 @@ static void parse_fen(const bool side_to_move_wdl, const parameters_t& parameter
     }
 
     //string fen;
-    Chess::Board board;
+    chess::Board board;
     if constexpr (enable_qsearch)
     {
         board = quiescence_root(parameters, original_fen);
@@ -501,7 +502,7 @@ static void parse_fen(const bool side_to_move_wdl, const parameters_t& parameter
     else
     {
         const auto clean_fen = cleanup_fen(original_fen);
-        board = Chess::Board(clean_fen);
+        board = chess::Board(clean_fen);
     }
 
     EvalResult eval_result;
@@ -517,7 +518,7 @@ static void parse_fen(const bool side_to_move_wdl, const parameters_t& parameter
 
     Entry entry;
     //entry.white_to_move = get_fen_color_to_move(fen);
-    entry.white_to_move = board.sideToMove() == Chess::Color::WHITE;
+    entry.white_to_move = board.sideToMove() == chess::Color::WHITE;
 #if TAPERED
     entry.endgame_scale = eval_result.endgame_scale;
 #endif
