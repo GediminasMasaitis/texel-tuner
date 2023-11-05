@@ -12,7 +12,7 @@ namespace Fourku
     {
     public:
         constexpr static bool includes_additional_score = true;
-        constexpr static bool supports_external_chess_eval = false;
+        constexpr static bool supports_external_chess_eval = true;
 
         static parameters_t get_initial_parameters();
         static EvalResult get_fen_eval_result(const std::string& fen);
