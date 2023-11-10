@@ -207,7 +207,9 @@ struct Trace
     int pst_file[48][2]{};
     int open_files[10][2]{};
     int mobilities[5][2]{};
+    int king_attacks[5][2]{};
     int pawn_protection[6][2]{};
+    int pawn_threat_penalty[6][2]{};
     int passers[4][2]{};
     int pawn_doubled_penalty[2]{};
     int pawn_phalanx[2]{};
@@ -218,49 +220,51 @@ struct Trace
     int king_shield[2][2]{};
 };
 
-const i32 phases[] = { 0, 1, 1, 2, 4, 0 };
-const i32 max_material[] = {139, 449, 452, 841, 1674, 0, 0};
-const i32 material[] = {S(100, 139), S(329, 449), S(341, 452), S(455, 841), S(825, 1674), 0};
+const i32 phases[] = {0, 1, 1, 2, 4, 0};
+const i32 max_material[] = {139, 450, 453, 849, 1685, 0, 0};
+const i32 material[] = {S(95, 139), S(339, 450), S(348, 453), S(461, 849), S(832, 1685), 0};
 const i32 pst_rank[] = {
-    0,         S(-2, 0),  S(-3, -1), S(-1, -1), S(1, 0),  S(5, 2), 0,        0,          // Pawn
-    S(-4, -5), S(-2, -3), S(-1, -1), S(1, 3),   S(3, 4),  S(7, 1), S(5, 0),  S(-11, 1),  // Knight
-    S(-2, -2), S(1, -2),  S(1, 0),   S(1, 0),   S(2, 1),  S(4, 0), S(1, 0),  S(-8, 2),   // Bishop
-    S(-2, -4), S(-2, -4), S(-3, -2), S(-4, 1),  S(-1, 2), S(3, 2), S(3, 3),  S(6, 1),    // Rook
-    S(1, -13), S(1, -10), S(0, -5),  S(-1, 1),  S(-1, 6), S(1, 5), S(-2, 9), S(1, 7),    // Queen
-    S(0, -6),  S(0, -2),  S(-2, 0),  S(-4, 3),  S(-1, 4), S(5, 4), S(3, 3),  S(4, -4),   // King
+    0,         S(-3, 0),  S(-3, -1), S(-1, -1), S(1, 0),  S(5, 2), 0,        0,          // Pawn
+    S(-3, -5), S(-1, -3), S(0, -1),  S(2, 2),   S(3, 4),  S(6, 1), S(4, 0),  S(-12, 1),  // Knight
+    S(-1, -2), S(2, -1),  S(2, 0),   S(2, 0),   S(2, 1),  S(3, 0), 0,        S(-8, 2),   // Bishop
+    S(0, -3),  S(-1, -3), S(-2, -2), S(-3, 1),  S(0, 2),  S(2, 2), S(1, 3),  S(3, 1),    // Rook
+    S(2, -11), S(2, -9),  S(1, -4),  S(-1, 1),  S(-1, 5), S(0, 5), S(-3, 7), S(-1, 5),   // Queen
+    S(-1, -5), S(1, -2),  0,         S(-2, 2),  S(0, 4),  S(6, 4), S(4, 2),  S(3, -4)    // King
 };
 const i32 pst_file[] = {
-    S(-2, 1),  S(-1, 1),  S(-1, 0), S(0, -1), S(1, 0),  S(2, 0),  S(2, 0),  S(-1, -1),  // Pawn
-    S(-4, -3), S(-2, -1), S(0, 1),  S(2, 3),  S(2, 2),  S(2, 0),  S(1, -1), S(-1, -3),  // Knight
-    S(-2, 0),  0,         S(1, 0),  S(0, 1),  S(0, 1),  S(-1, 1), S(2, -1), S(0, -1),   // Bishop
-    S(-2, 0),  S(-2, 1),  S(-1, 1), S(1, 0),  S(1, -1), S(1, 0),  S(2, 0),  S(-1, -1),  // Rook
-    S(-3, -4), S(-2, -2), S(-1, 0), S(0, 1),  S(0, 2),  S(1, 3),  S(2, 1),  S(3, -1),   // Queen
-    S(-2, -5), S(2, -1),  S(-2, 1), S(-3, 2), S(-4, 2), S(-1, 1), S(2, -1), S(0, -5),   // King
+    S(-1, 1),  S(-2, 1),  S(-1, 0), S(0, -1), S(1, 0),  S(2, 0),  S(2, 0),  S(-1, -1),  // Pawn
+    S(-5, -3), S(-2, -1), S(0, 1),  S(2, 3),  S(2, 2),  S(2, 0),  S(1, 0),  S(-1, -3),  // Knight
+    S(-2, 0),  0,         S(1, 0),  S(0, 1),  S(1, 1),  S(-1, 1), S(2, 0),  S(0, -1),   // Bishop
+    S(-2, 0),  S(-1, 1),  S(0, 1),  S(1, 0),  S(2, -1), S(1, 0),  S(1, 0),  S(-2, 0),   // Rook
+    S(-2, -4), S(-1, -2), S(-1, 0), S(0, 1),  S(0, 2),  S(1, 2),  S(2, 1),  S(2, -1),   // Queen
+    S(-3, -5), S(2, -2),  S(-1, 1), S(-2, 2), S(-3, 2), S(-1, 1), S(2, -1), S(0, -5)    // King
 };
 const i32 open_files[] = {
     // Semi open files
-    S(3, 4),
-    S(-4, 20),
-    S(20, 16),
-    S(3, 19),
-    S(-23, 10),
+    S(2, 4),
+    S(-5, 20),
+    S(18, 15),
+    S(3, 18),
+    S(-22, 10),
     // Open files
     S(-3, -12),
-    S(-11, 0),
-    S(47, 0),
-    S(-13, 35),
-    S(-63, 1),
+    S(-11, -1),
+    S(46, 0),
+    S(-14, 37),
+    S(-60, 1),
 };
-const i32 mobilities[] = {S(9, 5), S(8, 7), S(4, 4), S(4, 3), S(-5, -1)};
-const i32 pawn_protection[] = {S(24, 14), S(2, 16), S(8, 17), S(9, 8), S(-5, 23), S(-34, 26)};
-const i32 passers[] = {S(0, 15), S(29, 52), S(63, 126), S(209, 210)};
-const i32 pawn_passed_protected = S(13, 20);
-const i32 pawn_doubled_penalty = S(14, 38);
-const i32 pawn_phalanx = S(13, 12);
-const i32 pawn_passed_blocked_penalty[] = {S(10, 14), S(-5, 43), S(-9, 86), S(3, 101)};
+const i32 mobilities[] = {S(9, 5), S(8, 7), S(3, 4), S(4, 2), S(-5, 0)};
+const i32 king_attacks[] = {S(10, -5), S(18, -5), S(26, -10), S(19, 3), 0};
+const i32 pawn_protection[] = {S(22, 14), S(2, 15), S(7, 17), S(8, 10), S(-5, 20), S(-31, 25)};
+const i32 pawn_threat_penalty[] = {S(-4, 1), S(21, 1), S(12, 5), S(11, 17), S(9, 17), S(6, 5)};
+const i32 passers[] = {S(4, 14), S(35, 50), S(68, 124), S(220, 207)};
+const i32 pawn_passed_protected = S(11, 20);
+const i32 pawn_doubled_penalty = S(11, 37);
+const i32 pawn_phalanx = S(12, 11);
+const i32 pawn_passed_blocked_penalty[] = {S(9, 14), S(-7, 43), S(-9, 85), S(4, 97)};
 const i32 pawn_passed_king_distance[] = {S(1, -6), S(-4, 11)};
-const i32 bishop_pair = S(31, 72);
-const i32 king_shield[] = {S(35, -12), S(28, -8)};
+const i32 bishop_pair = S(32, 72);
+const i32 king_shield[] = {S(36, -12), S(27, -7)};
 const i32 pawn_attacked_penalty[] = {S(64, 14), S(155, 142)};
 
 #define TraceIncr(parameter) trace.parameter[color]++
@@ -326,6 +330,13 @@ static Trace eval(Position& pos) {
                     TraceIncr(pawn_protection[p]);
                 }
 
+                // Pawn threat
+                if (0x101010101010101ULL << sq & ~piece_bb & attacked_by_pawns)
+                {
+                    score -= pawn_threat_penalty[p];
+                    TraceAdd(pawn_threat_penalty[p], -1);
+                }
+
                 if (p == Pawn) {
                     // Passed pawns
                     if (rank > 2 && !(0x101010101010101ULL << sq & (pawns[1] | attacked_by_pawns))) {
@@ -380,9 +391,16 @@ static Trace eval(Position& pos) {
                     else if (p == Queen || p == King) {
                         mobility = bishop(sq, all_pieces) | rook(sq, all_pieces);
                     }
-                    mobility &= ~pos.colour[0] & ~attacked_by_pawns;
-                    score += mobilities[p-1] * count(mobility);
-                    TraceAdd(mobilities[p-1], count(mobility));
+                    //mobility &= ~pos.colour[0] & ~attacked_by_pawns;
+                    score += mobilities[p - 1] * count(mobility & ~pos.colour[0] & ~attacked_by_pawns);
+                    TraceAdd(mobilities[p - 1], count(mobility & ~pos.colour[0] & ~attacked_by_pawns));
+
+                    // Attacks on opponent king
+                    if (p != King)
+                    {
+                        score += king_attacks[p - 1] * count(mobility & king(kings[1], 0));
+                        TraceAdd(king_attacks[p - 1], count(mobility & king(kings[1], 0)));
+                    }
 
                     if (p == King && piece_bb & 0xC3D7) {
                         // C3D7 = Reasonable king squares
@@ -571,7 +589,9 @@ parameters_t FourkuEval::get_initial_parameters()
     get_initial_parameter_array(parameters, pst_file, 48);
     get_initial_parameter_array(parameters, open_files, 10);
     get_initial_parameter_array(parameters, mobilities, 5);
+    get_initial_parameter_array(parameters, king_attacks, 5);
     get_initial_parameter_array(parameters, pawn_protection, 6);
+    get_initial_parameter_array(parameters, pawn_threat_penalty, 6);
     get_initial_parameter_array(parameters, passers, 4);
     get_initial_parameter_single(parameters, pawn_passed_protected);
     get_initial_parameter_single(parameters, pawn_doubled_penalty);
@@ -591,7 +611,9 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.pst_file, 48);
     get_coefficient_array(coefficients, trace.open_files, 10);
     get_coefficient_array(coefficients, trace.mobilities, 5);
+    get_coefficient_array(coefficients, trace.king_attacks, 5);
     get_coefficient_array(coefficients, trace.pawn_protection, 6);
+    get_coefficient_array(coefficients, trace.pawn_threat_penalty, 6);
     get_coefficient_array(coefficients, trace.passers, 4);
     get_coefficient_single(coefficients, trace.pawn_passed_protected);
     get_coefficient_single(coefficients, trace.pawn_doubled_penalty);
@@ -617,7 +639,9 @@ void FourkuEval::print_parameters(const parameters_t& parameters)
     print_pst(ss, parameters_copy, index, "pst_file");
     print_array(ss, parameters_copy, index, "open_files", 10);
     print_array(ss, parameters_copy, index, "mobilities", 5);
+    print_array(ss, parameters_copy, index, "king_attacks", 5);
     print_array(ss, parameters_copy, index, "pawn_protection", 6);
+    print_array(ss, parameters_copy, index, "pawn_threat_penalty", 6);
     print_array(ss, parameters_copy, index, "passers", 4);
     print_single(ss, parameters_copy, index, "pawn_passed_protected");
     print_single(ss, parameters_copy, index, "pawn_doubled_penalty");
