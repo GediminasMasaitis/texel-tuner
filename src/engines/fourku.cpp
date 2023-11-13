@@ -406,7 +406,7 @@ static Trace eval(Position& pos) {
 
                     if(p == Bishop)
                     {
-                        auto mask = 0xAA55AA55AA55AA55UL;
+                        auto mask = 0xAA55AA55AA55AA55ULL;
                         if (!(piece_bb & mask))
                             mask = ~mask;
                         score -= bishop_pawns_penalty[0] * count(pawns[0] & mask);
