@@ -43,11 +43,9 @@ struct Entry
 #endif
 };
 
-static const array<WdlMarker, 6> markers
+static const array<WdlMarker, 4> markers
 {
     WdlMarker{"1.0", 1},
-    WdlMarker{"0.5", 0.5},
-    WdlMarker{"0.0", 0},
 
     WdlMarker{"1-0", 1},
     WdlMarker{"1/2-1/2", 0.5},
@@ -82,6 +80,11 @@ static tune_t get_fen_wdl(const string& original_fen, const bool original_white_
             if (word.starts_with("0."))
             {
                 wdl = stod(word);
+                marker_found = true;
+            }
+            else if (word.starts_with("[0."))
+            {
+                wdl = stod(word.substr(1, word.size() - 2));
                 marker_found = true;
             }
         }
