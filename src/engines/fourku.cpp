@@ -265,14 +265,14 @@ const i32 pawn_passed_blocked_penalty[] = {S(9, 14), S(-7, 43), S(-9, 85), S(4, 
 const i32 pawn_passed_king_distance[] = {S(1, -6), S(-4, 11)};
 const i32 bishop_pair = S(32, 72);
 const i32 king_shield[] = {S(36, -12), S(27, -7)};
-const i32 pawn_attacked_penalty[] = {S(64, 14), S(155, 142)};
+const i32 pawn_attacked_penalty[] = {S(63, 14), S(156, 140)};
 
 #define TraceIncr(parameter) trace.parameter[color]++
 #define TraceAdd(parameter, count) trace.parameter[color] += count
 
 static Trace eval(Position& pos) {
     Trace trace{};
-    int score = S(28, 10);
+    int score = S(29, 10);
     int phase = 0;
 
     for (int c = 0; c < 2; ++c) {
