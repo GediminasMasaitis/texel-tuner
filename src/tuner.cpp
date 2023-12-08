@@ -244,6 +244,10 @@ static void print_statistics(const parameters_t& parameters, const vector<Entry>
     array<size_t, 2> total{};
     array<tune_t, 2> wdls{};
 
+    size_t min_parameters = std::numeric_limits<uint64_t>::max();
+    size_t max_parameters = 0;
+    size_t total_parameters = 0;
+
     for(auto& entry : entries)
     {
         if(entry.wdl == 1)
@@ -260,6 +264,18 @@ static void print_statistics(const parameters_t& parameters, const vector<Entry>
         }
         total[entry.white_to_move]++;
         wdls[entry.white_to_move] += entry.wdl;
+
+        if(entry.coefficients.size() < min_parameters)
+        {
+            min_parameters = entry.coefficients.size();
+        }
+
+        if (entry.coefficients.size() > max_parameters)
+        {
+            max_parameters = entry.coefficients.size();
+        }
+
+        total_parameters += entry.coefficients.size();
     }
 
     cout << "Dataset statistics:" << endl;
@@ -273,6 +289,12 @@ static void print_statistics(const parameters_t& parameters, const vector<Entry>
         cout << color_name << " 0.0: " << losses[color] << " (" << (losses[color] * 100.0 / entries.size()) << "%)" << endl;
         cout << color_name << " avg: " << wdls[color] / total[color] << endl;
     }
+
+    auto avg_parameters = static_cast<tune_t>(total_parameters) / entries.size();
+    cout << "Parameters total: " << parameters.size() << endl;
+    cout << "Parameters min: " << min_parameters << endl;
+    cout << "Parameters max: " << max_parameters << endl;
+    cout << "Parameters avg: " << avg_parameters << endl;
 
     cout << endl;
 }
