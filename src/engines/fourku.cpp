@@ -660,22 +660,22 @@ Position get_position_from_external(const chess::Board& board)
 
     position.flipped = false;
 
-    position.colour[0] = board.us(chess::Color::WHITE);
-    position.colour[1] = board.them(chess::Color::WHITE);
+    position.colour[0] = board.us(chess::Color::WHITE).getBits();
+    position.colour[1] = board.them(chess::Color::WHITE).getBits();
 
-    position.pieces[Pawn] = board.pieces(chess::PieceType::PAWN, chess::Color::WHITE) | board.pieces(chess::PieceType::PAWN, chess::Color::BLACK);
-    position.pieces[Knight] = board.pieces(chess::PieceType::KNIGHT, chess::Color::WHITE) | board.pieces(chess::PieceType::KNIGHT, chess::Color::BLACK);
-    position.pieces[Bishop] = board.pieces(chess::PieceType::BISHOP, chess::Color::WHITE) | board.pieces(chess::PieceType::BISHOP, chess::Color::BLACK);
-    position.pieces[Rook] = board.pieces(chess::PieceType::ROOK, chess::Color::WHITE) | board.pieces(chess::PieceType::ROOK, chess::Color::BLACK);
-    position.pieces[Queen] = board.pieces(chess::PieceType::QUEEN, chess::Color::WHITE) | board.pieces(chess::PieceType::QUEEN, chess::Color::BLACK);
-    position.pieces[King] = board.pieces(chess::PieceType::KING, chess::Color::WHITE) | board.pieces(chess::PieceType::KING, chess::Color::BLACK);
+    position.pieces[Pawn] = board.pieces(chess::PieceType::PAWN, chess::Color::WHITE).getBits() | board.pieces(chess::PieceType::PAWN, chess::Color::BLACK).getBits();
+    position.pieces[Knight] = board.pieces(chess::PieceType::KNIGHT, chess::Color::WHITE).getBits() | board.pieces(chess::PieceType::KNIGHT, chess::Color::BLACK).getBits();
+    position.pieces[Bishop] = board.pieces(chess::PieceType::BISHOP, chess::Color::WHITE).getBits() | board.pieces(chess::PieceType::BISHOP, chess::Color::BLACK).getBits();
+    position.pieces[Rook] = board.pieces(chess::PieceType::ROOK, chess::Color::WHITE).getBits() | board.pieces(chess::PieceType::ROOK, chess::Color::BLACK).getBits();
+    position.pieces[Queen] = board.pieces(chess::PieceType::QUEEN, chess::Color::WHITE).getBits() | board.pieces(chess::PieceType::QUEEN, chess::Color::BLACK).getBits();
+    position.pieces[King] = board.pieces(chess::PieceType::KING, chess::Color::WHITE).getBits() | board.pieces(chess::PieceType::KING, chess::Color::BLACK).getBits();
 
-    position.castling[0] = board.castlingRights().hasCastlingRight(chess::Color::WHITE, chess::CastleSide::KING_SIDE);
-    position.castling[1] = board.castlingRights().hasCastlingRight(chess::Color::WHITE, chess::CastleSide::QUEEN_SIDE);
-    position.castling[2] = board.castlingRights().hasCastlingRight(chess::Color::BLACK, chess::CastleSide::KING_SIDE);
-    position.castling[3] = board.castlingRights().hasCastlingRight(chess::Color::BLACK, chess::CastleSide::QUEEN_SIDE);
+    position.castling[0] = board.castlingRights().has(chess::Color::WHITE, chess::Board::CastlingRights::Side::KING_SIDE);
+    position.castling[1] = board.castlingRights().has(chess::Color::WHITE, chess::Board::CastlingRights::Side::QUEEN_SIDE);
+    position.castling[2] = board.castlingRights().has(chess::Color::BLACK, chess::Board::CastlingRights::Side::KING_SIDE);
+    position.castling[3] = board.castlingRights().has(chess::Color::BLACK, chess::Board::CastlingRights::Side::QUEEN_SIDE);
 
-    position.ep = board.enpassantSq();
+    position.ep = board.enpassantSq().index();
     if(position.ep == 64)
     {
         position.ep = 0;
