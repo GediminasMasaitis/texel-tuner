@@ -480,11 +480,9 @@ string cleanup_fen(const string& initial_fen)
     return clean_fen;
 }
 
-chess::Board quiescence_root(const parameters_t& parameters, const string& initial_fen)
+chess::Board quiescence_root(const parameters_t& parameters, chess::Board board)
 {
     pv_table_t pv_table {};
-    const auto clean_fen = cleanup_fen(initial_fen);
-    auto board = chess::Board(clean_fen);
     auto score = quiescence(board, parameters, pv_table, -inf, inf, 0);
     if(board.sideToMove() == chess::Color::BLACK)
     {
@@ -519,15 +517,18 @@ static void parse_fen(const bool side_to_move_wdl, const parameters_t& parameter
     }
 
     //string fen;
-    chess::Board board;
+    const auto clean_fen = cleanup_fen(original_fen);
+    chess::Board board = chess::Board(clean_fen);
+
+    if constexpr (filter_in_check)
+    {
+        if (board.inCheck())
+            return;
+    }
+
     if constexpr (enable_qsearch)
     {
-        board = quiescence_root(parameters, original_fen);
-    }
-    else
-    {
-        const auto clean_fen = cleanup_fen(original_fen);
-        board = chess::Board(clean_fen);
+        board = quiescence_root(parameters, board);
     }
 
     EvalResult eval_result;
