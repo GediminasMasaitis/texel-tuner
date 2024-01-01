@@ -441,12 +441,12 @@ static Trace eval(Position& pos) {
     return trace;
 }
 
-#if TAPERED
-
 static int32_t round_value(tune_t value)
 {
     return static_cast<int32_t>(round(value));
 }
+
+#if TAPERED
 
 static void print_parameter(std::stringstream& ss, const pair_t parameter)
 {
@@ -464,7 +464,7 @@ static void print_parameter(std::stringstream& ss, const pair_t parameter)
 #else
 static void print_parameter(std::stringstream& ss, const tune_t parameter)
 {
-    ss << round_value(std::round(parameter);
+    ss << round_value(std::round(parameter));
 }
 #endif
 

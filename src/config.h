@@ -2,9 +2,9 @@
 #define CONFIG_H 1
 
 #include<cstdint>
+//#include "engines/toy.h"
+//#include "engines/toy_tapered.h"
 #include "engines/fourku.h"
-#include "engines/toy.h"
-#include "engines/toy_tapered.h"
 
 #define TAPERED 1
 //using TuneEval = Toy::ToyEval;

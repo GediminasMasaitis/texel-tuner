@@ -93,6 +93,11 @@ EvalResult ToyEval::get_fen_eval_result(const std::string& fen)
     return result;
 }
 
+EvalResult ToyEval::get_external_eval_result(const chess::Board& board)
+{
+    throw std::runtime_error("Not implemented");
+}
+
 static void print_single(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name)
 {
     ss << "constexpr int " << name << " = " << parameters[index] << ";" << endl;

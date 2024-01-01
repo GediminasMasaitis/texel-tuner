@@ -91,6 +91,11 @@ EvalResult ToyEvalTapered::get_fen_eval_result(const string& fen)
     return result;
 }
 
+EvalResult ToyEvalTapered::get_external_eval_result(const chess::Board& board)
+{
+    throw std::runtime_error("Not implemented");
+}
+
 static void print_parameter(std::stringstream& ss, const pair_t parameter)
 {
     ss << "S(" << parameter[static_cast<int32_t>(PhaseStages::Midgame)] << ", " << parameter[static_cast<int32_t>(PhaseStages::Endgame)] << ")";
