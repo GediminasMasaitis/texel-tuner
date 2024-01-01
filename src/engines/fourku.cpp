@@ -501,10 +501,7 @@ static void print_pst(std::stringstream& ss, const parameters_t& parameters, int
         print_parameter(ss, parameters[index]);
         index++;
 
-        if (i != 47)
-        {
-            ss << ", ";
-        }
+        ss << ", ";
 
         if (i % 8 == 7)
         {
