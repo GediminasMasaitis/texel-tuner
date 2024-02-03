@@ -9,7 +9,7 @@ To add your own evaluation it is required to transform your evaluation into a li
 
 For each position in the training dataset, the evaluation should count the occurances of each evaluation term, and return a `coefficients_t` object where each entry is the count oftimes an evaluation term has been userd per-side.
 
-For a new engine it's required to implement an evaluation class with 4 functions and 2 constexpr variables. More on them at [Evaluation class](#evaluation-class)
+For a new engine it's required to create a new header file with an evaluation class. More on it at [Evaluation class](#evaluation-class)
 
 ```cpp
     class YourEval
@@ -24,11 +24,14 @@ For a new engine it's required to implement an evaluation class with 4 functions
         static void print_parameters(const parameters_t& parameters);
     };
 ```
-Edit `config.h` to point `TuneEval` to your evaluation class. Edit thread_count to be equivalent to what you're comfortable with. If you're using a tapered evaluation, set `#define TAPERED 1` in both `base.h` and `config.h`, otherwhise set both to `#define TAPERED 0`.
+Edit `config.h` to point `TuneEval` to your evaluation class. Edit `thread_count`` to be equivalent to what you're comfortable with. 
 
 Examples can be found in the `engines` directory. `ToyEval` and `ToyEvalTapered` are very minimal examples, while `Fourku` is a full example for the engine [4ku](https://github.com/kz04px/4ku).
 
 ## Evaluation class
+
+### TAPERED macro
+If you're using a tapered evaluation, set `#define TAPERED 1` in both `base.h` and `config.h`, otherwhise set both to `#define TAPERED 0`.
 
 ### includes_additional_score
 This parameter should be set to *true* if there are any terms in the evaluation which are not being tuned at the moment. If set to `false`, any additional terms would be ignored comepletely. If set to `true`, then the evaluation function should compute the score itself, and set it as `score` when returning an `EvalResult` from [get_*_eval_result](#get_fen_eval_result) functions.

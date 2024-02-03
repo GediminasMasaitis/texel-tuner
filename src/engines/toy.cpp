@@ -1,6 +1,5 @@
 #include "toy.h"
 #include "toy_base.h"
-#include "../base.h"
 
 #include <array>
 #include <iostream>
