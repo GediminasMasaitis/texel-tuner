@@ -31,7 +31,7 @@ Examples can be found in the `engines` directory. `ToyEval` and `ToyEvalTapered`
 ## Evaluation class constants
 
 ### TAPERED define
-If you're using a tapered evaluation, set `#define TAPERED 1` in both `base.h` and `config.h`, otherwhise set both to `#define TAPERED 0`.
+If you're using a tapered evaluation, set `#define TAPERED 1`. Otherwise, set `#define TAPERED 0`.
 
 ### includes_additional_score
 This parameter should be set to *true* if there are any terms in the evaluation which are not being tuned at the moment. If set to `false`, any additional terms would be ignored comepletely. If set to `true`, then the evaluation function should compute the score itself, and set it as `score` when returning an `EvalResult` from [get_*_eval_result](#get_fen_eval_result) functions.
