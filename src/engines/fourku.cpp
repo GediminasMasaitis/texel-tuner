@@ -1,7 +1,6 @@
 // THIS FILE IS LICENSED MIT
 
 #include "fourku.h"
-#include "../base.h"
 
 #include <array>
 #include <bit>
@@ -422,8 +421,8 @@ static Trace eval(Position& pos) {
         score = -score;
     }
 
-    // Tapered eval
-
+#if TAPERED
+    // Tapered eval with endgame scaling based on remaining pawn count of the stronger side
     int stronger_colour = score < 0;
     auto stronger_colour_pieces = pos.colour[stronger_colour];
     auto stronger_colour_pawns = stronger_colour_pieces & pos.pieces[Pawn];
@@ -433,6 +432,10 @@ static Trace eval(Position& pos) {
         
     trace.endgame_scale = scale;
     trace.score = ((short)score * phase + ((score + 0x8000) >> 16) * scale * (24 - phase)) / 24;
+#else
+    trace.endgame_scale = 1;
+    trace.score = score;
+#endif
 
     if (pos.flipped)
     {
@@ -477,7 +480,7 @@ static void print_single(std::stringstream& ss, const parameters_t& parameters, 
     ss << ";" << endl;
 }
 
-static void print_array(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name, int count)
+static void print_array(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name, const int count)
 {
     ss << "const i32 " << name << "[] = {";
     for (auto i = 0; i < count; i++)
@@ -511,7 +514,7 @@ static void print_pst(std::stringstream& ss, const parameters_t& parameters, int
     ss << "};" << endl;
 }
 
-static void print_array_2d(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name, int count1, int count2)
+static void print_array_2d(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name, const int count1, const int count2)
 {
     ss << "const i32 " << name << "[][" << count2 << "] = {\n";
     for (auto i = 0; i < count1; i++)
@@ -537,10 +540,15 @@ static void print_max_material(std::stringstream& ss, const parameters_t& parame
     ss << "const i32 max_material[] = {";
     for (auto i = 0; i < 6; i++)
     {
+#if TAPERED
         const auto mg = parameters[i][static_cast<int>(PhaseStages::Midgame)];
         const auto eg = parameters[i][static_cast<int>(PhaseStages::Endgame)];
         const auto max_material = round_value(max(mg, eg));
         ss << max_material << ", ";
+#else
+        const auto score = round_value(parameters[i]);
+        ss << score << ", ";
+#endif
     }
     ss << "0};" << endl;
 }
@@ -550,8 +558,10 @@ static void rebalance_psts(parameters_t& parameters, const int32_t pst_offset, b
     for (auto pieceIndex = 0; pieceIndex < 5; pieceIndex++)
     {
         const int pstStart = pst_offset + pieceIndex * pst_size;
+#if TAPERED
         for (int stage = 0; stage < 2; stage++)
         {
+#endif
             double sum = 0;
             for (auto i = 0; i < pst_size; i++)
             {
@@ -560,12 +570,20 @@ static void rebalance_psts(parameters_t& parameters, const int32_t pst_offset, b
                     continue;
                 }
                 const auto pstIndex = pstStart + i;
+#if TAPERED
                 sum += parameters[pstIndex][stage];
+#else
+                sum += parameters[pstIndex];
+#endif
             }
 
             const auto average = sum / (pieceIndex == 0 && pawn_exclusion ? pst_size - 3 : pst_size);
             //const auto average = sum / pst_size;
+#if TAPERED
             parameters[pieceIndex][stage] += average * quantization;
+#else
+            parameters[pieceIndex] += average * quantization;
+#endif
             for (auto i = 0; i < pst_size; i++)
             {
                 if (pieceIndex == 0 && pawn_exclusion && (i == 0 || i == pst_size - 1 || i == pst_size - 2))
@@ -573,9 +591,15 @@ static void rebalance_psts(parameters_t& parameters, const int32_t pst_offset, b
                     continue;
                 }
                 const auto pstIndex = pstStart + i;
+#if TAPERED
                 parameters[pstIndex][stage] -= average;
+#else
+                parameters[pstIndex] -= average;
+#endif
             }
+#if TAPERED
         }
+#endif
     }
 }
 

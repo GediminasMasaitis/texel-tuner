@@ -1,5 +1,4 @@
 #include "tuner.h"
-#include "base.h"
 #include "config.h"
 #include "threadpool.h"
 #include "external/chess.hpp"
@@ -17,6 +16,10 @@
 using namespace std;
 using namespace std::chrono;
 using namespace Tuner;
+
+#ifndef TAPERED
+static_assert(false, "Tuner requires TAPERED to be defined")
+#endif
 
 struct WdlMarker
 {
@@ -513,20 +516,20 @@ static void parse_fen(const bool side_to_move_wdl, const parameters_t& parameter
 {
     if constexpr (print_data_entries)
     {
-        //cout << fen;
+        cout << original_fen;
     }
 
     //string fen;
     const auto clean_fen = cleanup_fen(original_fen);
     chess::Board board = chess::Board(clean_fen);
 
-    if constexpr (filter_in_check)
+    if constexpr (TuneEval::filter_in_check)
     {
         if (board.inCheck())
             return;
     }
 
-    if constexpr (enable_qsearch)
+    if constexpr (TuneEval::enable_qsearch)
     {
         board = quiescence_root(parameters, board);
     }
@@ -649,7 +652,7 @@ static void parse_fens(ThreadPool& thread_pool, const DataSource& source, const 
                     batches.pop();
                 }
 
-                constexpr auto thread_data_load_print_interval = data_load_print_interval / data_load_thread_count;
+                constexpr auto thread_data_load_print_interval = TuneEval::data_load_print_interval / data_load_thread_count;
                 for(auto& fen : thread_batch)
                 {
                     parse_fen(side_to_move_wdl, parameters, entries, fen);
@@ -843,7 +846,7 @@ void Tuner::run(const std::vector<DataSource>& sources)
 
     print_statistics(parameters, entries);
 
-    if constexpr (retune_from_zero)
+    if constexpr (TuneEval::retune_from_zero)
     {
         for (auto& parameter : parameters)
         {
@@ -860,15 +863,15 @@ void Tuner::run(const std::vector<DataSource>& sources)
     TuneEval::print_parameters(parameters);
 
     tune_t K;
-    if constexpr (preferred_k <= 0)
+    if constexpr (TuneEval::preferred_k <= 0)
     {
         cout << "Finding optimal K..." << endl;
         K = find_optimal_k(thread_pool, entries, parameters);
     }
     else
     {
-        cout << "Using predefined K = " << preferred_k <<  endl;
-        K = preferred_k;
+        cout << "Using predefined K = " << TuneEval::preferred_k <<  endl;
+        K = TuneEval::preferred_k;
     }
     cout << "K = " << K << endl;
 
@@ -876,8 +879,8 @@ void Tuner::run(const std::vector<DataSource>& sources)
     cout << "Initial error = " << avg_error << endl;
 
     const auto loop_start = high_resolution_clock::now();
-    tune_t learning_rate = initial_learning_rate;
-    int32_t max_tune_epoch = max_epoch;
+    tune_t learning_rate = TuneEval::initial_learning_rate;
+    int32_t max_tune_epoch = TuneEval::max_epoch;
 #if TAPERED
     parameters_t momentum(parameters.size(), pair_t{});
     parameters_t velocity(parameters.size(), pair_t{});
@@ -926,9 +929,9 @@ void Tuner::run(const std::vector<DataSource>& sources)
             TuneEval::print_parameters(parameters);
         }
 
-        if(epoch % learning_rate_drop_interval == 0)
+        if(epoch % TuneEval::learning_rate_drop_interval == 0)
         {
-            learning_rate *= learning_rate_drop_ratio;
+            learning_rate *= TuneEval::learning_rate_drop_ratio;
         }
     }
 

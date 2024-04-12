@@ -9,7 +9,7 @@ To add your own evaluation it is required to transform your evaluation into a li
 
 For each position in the training dataset, the evaluation should count the occurances of each evaluation term, and return a `coefficients_t` object where each entry is the count oftimes an evaluation term has been userd per-side.
 
-For a new engine it's required to implement an evaluation class with 4 functions and 2 constexpr variables. More on them at [Evaluation class](#evaluation-class)
+For a new engine it's required to create a new header file with an evaluation class. More on it at [Evaluation class](#evaluation-class)
 
 ```cpp
     class YourEval
@@ -24,11 +24,14 @@ For a new engine it's required to implement an evaluation class with 4 functions
         static void print_parameters(const parameters_t& parameters);
     };
 ```
-Edit `config.h` to point `TuneEval` to your evaluation class. Edit thread_count to be equivalent to what you're comfortable with. If you're using a tapered evaluation, set `#define TAPERED 1` in both `base.h` and `config.h`, otherwhise set both to `#define TAPERED 0`.
+Edit `config.h` to point `TuneEval` to your evaluation class. Edit `thread_count`` to be equivalent to what you're comfortable with. 
 
 Examples can be found in the `engines` directory. `ToyEval` and `ToyEvalTapered` are very minimal examples, while `Fourku` is a full example for the engine [4ku](https://github.com/kz04px/4ku).
 
-## Evaluation class
+## Evaluation class constants
+
+### TAPERED define
+If you're using a tapered evaluation, set `#define TAPERED 1` in both `base.h` and `config.h`, otherwhise set both to `#define TAPERED 0`.
 
 ### includes_additional_score
 This parameter should be set to *true* if there are any terms in the evaluation which are not being tuned at the moment. If set to `false`, any additional terms would be ignored comepletely. If set to `true`, then the evaluation function should compute the score itself, and set it as `score` when returning an `EvalResult` from [get_*_eval_result](#get_fen_eval_result) functions.
@@ -37,6 +40,36 @@ The purpose of this is that if set to `false`, then the tuning can be faster, wh
 
 ### supports_external_chess_eval
 This parameter indicates whether or not the engine supports translating from a board structure defined in the `external` directory. See more at [get_external_eval_result](#get_external_eval_result)
+
+### retune_from_zero
+If set to `true`, tuning will start with all evaluation terms set to `0`. It is still needed to implement [get_initial_parameters](#get_initial_parameters) in the evaluation class, even it is set to `true`. Setting it to `false` will make the tuner start with the current evaluation terms.
+
+### preferred_k
+`K` is a scaling parameter, the lower the `K`, the higher the tuned evaluation scores will be overall. Setting `preferred_k = 0` will make the tuner try to auto-determine the optimal `K` in order to preserve the same scale as the existing eval terms.
+
+Setting `preferred_k = 0` is not compatible with `retune_from_zero = true`.
+
+### max_epoch
+Maximum limit of how many epochs (iterations over the whole dataset) to run. Could be useful if for example you only ever run 5000 epochs, to keep the tuning consistent.
+
+### enable_qsearch
+If set to `true`, will use [quiescence search](https://www.chessprogramming.org/Quiescence_Search) when loading each entry from the data set, in order to get to quiet positions (positions where the best move is not a capture). When tuning with already only quiet positions this will have a minimal effect on the tuning outcome.
+
+If set to `true`, data loading will be considerably slower. This can be mitigated by implementing [get_external_eval_result](#get_external_eval_result) in the evaluation class and setting [supports_external_chess_eval](#supports_external_chess_eval) to `true`, however the data loading will still be slower.
+
+### filter_in_check
+If set to `true`, will discard all positions where the side to move is in-check. This helps quiet the dataset, and can be used with [enable_qsearch](#enable_qsearch) set to either `true` or `false`.
+
+### initial_learning_rate
+How fast big of a step the trainer will take when performing gradient descent. Lower values may add more stability to the training, higher values will make the gradient tuning faster. The default value should be good enough for most use cases.
+
+### learning_rate_drop_interval
+Reduces the learning rate every N epochs. 
+
+### learning_rate_drop_ratio
+By how much to drop the learning ration every [learning_rate_drop_interval](#learning_rate_drop_interval) epochs. A value of `0.5` will cut the learning rate in half, after N epochs have passed. A value of 1 disables LR drops.
+
+## Evaluation class functions
 
 ### get_initial_parameters
 This function retrieves the initial parameters of the evaluation in a vector form. Each parameter is an entry in `parameters_t`.
@@ -62,22 +95,6 @@ This function prints the results of the tuning, the input is given as a vector o
 
 ### thread_count
 Maximum number of how many threads various tuning operations will take. Recommended to set to the amount of physical cores on the system the tuner is being run on.
-
-### preferred_k
-`K` is a scaling parameter, the lower the `K`, the higher the tuned evaluation scores will be overall. Setting `preferred_k = 0` will make the tuner try to auto-determine the optimal `K` in order to preserve the same scale as the existing eval terms.
-
-Setting `preferred_k = 0` is not compatible with `retune_from_zero = true`.
-
-### max_epoch
-Maximum limit of how many epochs (iterations over the whole dataset) to run. Could be useful if for example you only ever run 5000 epochs, to keep the tuning consistent.
-
-### retune_from_zero
-If set to `true`, tuning will start with all evaluation terms set to `0`. It is still needed to implement [get_initial_parameters](#get_initial_parameters) in the evaluation class, even it is set to `true`. Setting it to `false` will make the tuner start with the current evaluation terms.
-
-### enable_qsearch
-If set to `true`, will use [quiescence search](https://www.chessprogramming.org/Quiescence_Search) when loading each entry from the data set, in order to get to quiet positions (positions where the best move is not a capture). When tuning with already only quiet positions this will have a minimal effect on the tuning outcome.
-
-If set to `true`, data loading will be considerably slower. This can be mitigated by implementing [get_external_eval_result](#get_external_eval_result) in the evaluation class and setting [supports_external_chess_eval](#supports_external_chess_eval) to `true`, however the data loading will still be slower.
 
 ### print_data_entries
 If set to `true`, will print information about each entry while loading the data set. Should only enable if debugging.
