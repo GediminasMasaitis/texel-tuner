@@ -1,7 +1,7 @@
 #ifndef FOURKU_H
 #define FOURKU_H 1
 
-#define TAPERED 1
+#define TAPERED 0 
 
 #include "../base.h"
 #include "../external/chess.hpp"

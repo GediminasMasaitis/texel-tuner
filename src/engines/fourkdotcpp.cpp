@@ -226,6 +226,7 @@ const i32 pst_file[] = {
     S(-2, -5), S(2, -1),  S(-1, 1), S(-4, 2), S(-4, 2), S(-2, 2), S(2, -1), S(0, -5),   // King
 };
 
+
 #define TraceIncr(parameter) trace.parameter[color]++
 #define TraceAdd(parameter, count) trace.parameter[color] += count
 
@@ -236,13 +237,6 @@ static Trace eval(Position& pos) {
 
     for (int c = 0; c < 2; ++c) {
         const int color = pos.flipped;
-
-        // our pawns, their pawns
-        const u64 pawns[] = { pos.colour[0] & pos.pieces[Pawn], pos.colour[1] & pos.pieces[Pawn] };
-        const u64 protected_by_pawns = nw(pawns[0]) | ne(pawns[0]);
-        const u64 attacked_by_pawns = se(pawns[1]) | sw(pawns[1]);
-        const int kings[] = { lsb(pos.colour[0] & pos.pieces[King]), lsb(pos.colour[1] & pos.pieces[King]) };
-        const u64 all_pieces = pos.colour[0] | pos.colour[1];
 
         // For each piece type
         for (int p = 0; p < 6; ++p) {
@@ -260,11 +254,9 @@ static Trace eval(Position& pos) {
                 const int file = sq % 8;
 
                 // Split quantized PSTs
-                if (p != Pawn || (rank != 0 && rank != 6 && rank != 7)) // Special for tuner. Rank 6 = guaranteed passer
-                {
-                    score += pst_rank[p * 8 + rank] * 1;
-                    TraceAdd(pst_rank[p * 8 + rank], 1);
-                }
+                score += pst_rank[p * 8 + rank] * 1;
+                TraceAdd(pst_rank[p * 8 + rank], 1);
+
                 score += pst_file[p * 8 + file] * 1;
                 TraceAdd(pst_file[p * 8 + file], 1);
             }
