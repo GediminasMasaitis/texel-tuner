@@ -262,11 +262,11 @@ static Trace eval(Position& pos) {
                 // Split quantized PSTs
                 if (p != Pawn || (rank != 0 && rank != 6 && rank != 7)) // Special for tuner. Rank 6 = guaranteed passer
                 {
-                    score += pst_rank[p * 8 + rank] * 8;
-                    TraceAdd(pst_rank[p * 8 + rank], 8);
+                    score += pst_rank[p * 8 + rank] * 1;
+                    TraceAdd(pst_rank[p * 8 + rank], 1);
                 }
-                score += pst_file[p * 8 + file] * 8;
-                TraceAdd(pst_file[p * 8 + file], 8);
+                score += pst_file[p * 8 + file] * 1;
+                TraceAdd(pst_file[p * 8 + file], 1);
             }
         }
 
@@ -478,8 +478,8 @@ static coefficients_t get_coefficients(const Trace& trace)
 void FourkdotcppEval::print_parameters(const parameters_t& parameters)
 {
     parameters_t parameters_copy = parameters;
-    rebalance_psts(parameters_copy, 6, true, 8, 8);
-    rebalance_psts(parameters_copy, 6 + 6 * 8, false, 8, 8);
+    rebalance_psts(parameters_copy, 6, true, 8, 1);
+    rebalance_psts(parameters_copy, 6 + 6 * 8, false, 8, 1);
 
     int index = 0;
     stringstream ss;
