@@ -1,6 +1,6 @@
 // THIS FILE IS LICENSED MIT
 
-#include "fourku.h"
+#include "fourkdotcpp.h"
 
 #include <array>
 #include <bit>
@@ -9,7 +9,7 @@
 #include <sstream>
 
 using namespace std;
-using namespace Fourku;
+using namespace Fourkdotcpp;
 
 using u64 = uint64_t;
 using i32 = int;
@@ -118,7 +118,7 @@ template <typename F>
     return mask;
 }
 
-[[nodiscard]] static u64 knight(const int sq, const u64) {
+[[nodiscard]] u64 knight(const int sq, const u64) {
     const u64 bb = 1ULL << sq;
     return (((bb << 15) | (bb >> 17)) & 0x7F7F7F7F7F7F7F7FULL) | (((bb << 17) | (bb >> 15)) & 0xFEFEFEFEFEFEFEFEULL) |
         (((bb << 10) | (bb >> 6)) & 0xFCFCFCFCFCFCFCFCULL) | (((bb << 6) | (bb >> 10)) & 0x3F3F3F3F3F3F3F3FULL);
@@ -603,7 +603,7 @@ static void rebalance_psts(parameters_t& parameters, const int32_t pst_offset, b
     }
 }
 
-parameters_t FourkuEval::get_initial_parameters()
+parameters_t FourkdotcppEval::get_initial_parameters()
 {
     parameters_t parameters;
     get_initial_parameter_array(parameters, material, 6);
@@ -647,7 +647,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     return coefficients;
 }
 
-void FourkuEval::print_parameters(const parameters_t& parameters)
+void FourkdotcppEval::print_parameters(const parameters_t& parameters)
 {
     parameters_t parameters_copy = parameters;
     rebalance_psts(parameters_copy, 6, true, 8, 8);
@@ -675,7 +675,7 @@ void FourkuEval::print_parameters(const parameters_t& parameters)
     cout << ss.str() << "\n";
 }
 
-Position get_position_from_external(const chess::Board& board)
+static Position get_position_from_external(const chess::Board& board)
 {
     Position position;
 
@@ -721,7 +721,7 @@ Position get_position_from_external(const chess::Board& board)
     return position;
 }
 
-EvalResult FourkuEval::get_fen_eval_result(const string& fen)
+EvalResult FourkdotcppEval::get_fen_eval_result(const string& fen)
 {
     Position position;
     set_fen(position, fen);
@@ -733,7 +733,7 @@ EvalResult FourkuEval::get_fen_eval_result(const string& fen)
     return result;
 }
 
-EvalResult FourkuEval::get_external_eval_result(const chess::Board& board)
+EvalResult FourkdotcppEval::get_external_eval_result(const chess::Board& board)
 {
     auto position = get_position_from_external(board);
     const auto trace = eval(position);
