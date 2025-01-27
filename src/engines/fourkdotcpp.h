@@ -17,7 +17,7 @@ namespace Fourkdotcpp
         constexpr static bool includes_additional_score = true;
         constexpr static bool supports_external_chess_eval = true;
         constexpr static bool retune_from_zero = true;
-        constexpr static tune_t preferred_k = 2.1;
+        constexpr static tune_t preferred_k = 3;
         constexpr static int32_t max_epoch = 5001;
         constexpr static bool enable_qsearch = false;
         constexpr static bool filter_in_check = false;

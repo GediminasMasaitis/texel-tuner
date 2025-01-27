@@ -34,7 +34,6 @@ enum class PhaseStages
 
 constexpr int32_t S(const int32_t mg, const int32_t eg)
 {
-    //return (eg << 16) + mg;
     return static_cast<int32_t>(static_cast<uint32_t>(eg) << 16) + mg;
 }
 

@@ -207,7 +207,6 @@ struct Trace
 };
 
 const i32 phases[] = {0, 1, 1, 2, 4, 0};
-const i32 max_material[] = {147, 521, 521, 956, 1782, 0, 0};
 const i32 material[] = {S(89, 147), S(350, 521), S(361, 521), S(479, 956), S(1046, 1782), 0};
 const i32 pst_rank[] = {
     0,         S(-3, 0),  S(-3, -1), S(-1, -1), S(1, 0),  S(5, 3),  0,        0,          // Pawn
@@ -232,7 +231,7 @@ const i32 pst_file[] = {
 
 static Trace eval(Position& pos) {
     Trace trace{};
-    int score = S(29, 10);
+    int score = S(12, 12);
     int phase = 0;
 
     for (int c = 0; c < 2; ++c) {
@@ -319,7 +318,7 @@ static void print_parameter(std::stringstream& ss, const tune_t parameter)
 
 static void print_single(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name)
 {
-    ss << "const i32 " << name << " = ";
+    ss << "const i8 " << name << " = ";
     print_parameter(ss, parameters[index]);
     index++;
 
@@ -328,7 +327,7 @@ static void print_single(std::stringstream& ss, const parameters_t& parameters, 
 
 static void print_array(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name, const int count)
 {
-    ss << "const i32 " << name << "[] = {";
+    ss << "__attribute__((aligned(8))) static const i8 " << name << "[] = {";
     for (auto i = 0; i < count; i++)
     {
         print_parameter(ss, parameters[index]);
@@ -344,7 +343,7 @@ static void print_array(std::stringstream& ss, const parameters_t& parameters, i
 
 static void print_pst(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name)
 {
-    ss << "const i32 " << name << "[] = {";
+    ss << "__attribute__((aligned(8))) static const i8 " << name << "[] = {";
     for (auto i = 0; i < 48; i++)
     {
         print_parameter(ss, parameters[index]);
@@ -379,24 +378,6 @@ static void print_array_2d(std::stringstream& ss, const parameters_t& parameters
         ss << "},\n";
     }
     ss << "};\n";
-}
-
-static void print_max_material(std::stringstream& ss, const parameters_t& parameters)
-{
-    ss << "const i32 max_material[] = {";
-    for (auto i = 0; i < 6; i++)
-    {
-#if TAPERED
-        const auto mg = parameters[i][static_cast<int>(PhaseStages::Midgame)];
-        const auto eg = parameters[i][static_cast<int>(PhaseStages::Endgame)];
-        const auto max_material = round_value(max(mg, eg));
-        ss << max_material << ", ";
-#else
-        const auto score = round_value(parameters[i]);
-        ss << score << ", ";
-#endif
-    }
-    ss << "0};" << endl;
 }
 
 static void rebalance_psts(parameters_t& parameters, const int32_t pst_offset, bool pawn_exclusion, const int32_t pst_size, const int32_t quantization)
@@ -475,7 +456,6 @@ void FourkdotcppEval::print_parameters(const parameters_t& parameters)
 
     int index = 0;
     stringstream ss;
-    print_max_material(ss, parameters_copy);
     print_array(ss, parameters_copy, index, "material", 6);
     print_pst(ss, parameters_copy, index, "pst_rank");
     print_pst(ss, parameters_copy, index, "pst_file");
