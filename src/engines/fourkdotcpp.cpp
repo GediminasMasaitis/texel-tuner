@@ -231,7 +231,7 @@ const i32 pst_file[] = {
 
 static Trace eval(Position& pos) {
     Trace trace{};
-    int score = S(12, 12);
+    int score = S(16, 16);
     int phase = 0;
 
     for (int c = 0; c < 2; ++c) {
