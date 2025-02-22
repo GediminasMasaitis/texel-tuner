@@ -204,6 +204,7 @@ struct Trace
     int material[6][2]{};
     int pst_rank[48][2]{};
     int pst_file[48][2]{};
+    int pawn_doubled[2]{};
     int bishop_pair[2]{};
 };
 
@@ -225,6 +226,7 @@ const i32 pst_file[] = {
     S(-2, -3), S(-1, -1), S(-1, 0), S(0, 1),  S(0, 2),  S(1, 2),  S(2, 0),  S(1, -1),   // Queen
     S(-2, -5), S(2, -1),  S(-1, 1), S(-4, 2), S(-4, 2), S(-2, 2), S(2, -1), S(0, -5),   // King
 };
+const i32 pawn_doubled = 0;
 const i32 bishop_pair = 0;
 
 
@@ -238,6 +240,10 @@ static Trace eval(Position& pos) {
 
     for (int c = 0; c < 2; ++c) {
         const int color = pos.flipped;
+
+        const u64 own_pawns = pos.colour[0] & pos.pieces[Pawn];
+        score += count(own_pawns & (north(own_pawns)));
+        TraceAdd(pawn_doubled, count(own_pawns & north(own_pawns)));
 
         if (count(pos.colour[0] & pos.pieces[Bishop]) == 2) {
             score += bishop_pair;
@@ -443,6 +449,7 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_array(parameters, material, 6);
     get_initial_parameter_array(parameters, pst_rank, 48);
     get_initial_parameter_array(parameters, pst_file, 48);
+    get_initial_parameter_single(parameters, pawn_doubled);
     get_initial_parameter_single(parameters, bishop_pair);
     return parameters;
 }
@@ -453,6 +460,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.material, 6);
     get_coefficient_array(coefficients, trace.pst_rank, 48);
     get_coefficient_array(coefficients, trace.pst_file, 48);
+    get_coefficient_single(coefficients, trace.pawn_doubled);
     get_coefficient_single(coefficients, trace.bishop_pair);
     return coefficients;
 }
@@ -468,6 +476,7 @@ void FourkdotcppEval::print_parameters(const parameters_t& parameters)
     print_array(ss, parameters_copy, index, "material", 6);
     print_pst(ss, parameters_copy, index, "pst_rank");
     print_pst(ss, parameters_copy, index, "pst_file");
+    print_single(ss, parameters_copy, index, "pawn_doubled");
     print_single(ss, parameters_copy, index, "bishop_pair");
     cout << ss.str() << "\n";
 }
