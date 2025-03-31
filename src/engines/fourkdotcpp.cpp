@@ -196,6 +196,27 @@ static void set_fen(Position& pos, const string& fen) {
     }
 }
 
+[[nodiscard]] static u64 get_mobility(const i32 sq, const i32 piece,
+    const Position* pos) {
+    u64 moves = 0;
+    if (piece == Knight) {
+        moves = knight(sq, 0);
+    }
+    else if (piece == King) {
+        moves = king(sq, 0);
+    }
+    else {
+        const u64 blockers = pos->colour[0] | pos->colour[1];
+        if (piece == Rook || piece == Queen) {
+            moves |= rook(sq, blockers);
+        }
+        if (piece == Bishop || piece == Queen) {
+            moves |= bishop(sq, blockers);
+        }
+    }
+    return moves;
+}
+
 struct Trace
 {
     int score;
@@ -205,6 +226,9 @@ struct Trace
     int pst_rank[48][2]{};
     int pst_file[48][2]{};
     int open_files[6][2]{};
+    int protected_pawn[2]{};
+    //int phalanx_pawn[2]{};
+    int bishop_pair[2]{};
 };
 
 const i32 phases[] = {0, 1, 1, 2, 4, 0};
@@ -226,6 +250,9 @@ const i32 pst_file[] = {
     S(-2, -5), S(2, -1),  S(-1, 1), S(-4, 2), S(-4, 2), S(-2, 2), S(2, -1), S(0, -5),   // King
 };
 const i32 open_files[] = { 0,0,0,0,0,0 };
+const i32 protected_pawn = 0;
+//const i32 phalanx_pawn = 0;
+const i32 bishop_pair = 0;
 
 #define TraceIncr(parameter) trace.parameter[color]++
 #define TraceAdd(parameter, count) trace.parameter[color] += count
@@ -239,6 +266,18 @@ static Trace eval(Position& pos) {
         const int color = pos.flipped;
 
         const u64 own_pawns = pos.colour[0] & pos.pieces[Pawn];
+        //const u64 pawn_protected = nw(own_pawns) | ne(own_pawns);
+
+        score += protected_pawn * count(own_pawns & (nw(own_pawns) | ne(own_pawns) | east(own_pawns)));
+        TraceAdd(protected_pawn, count(own_pawns & (nw(own_pawns) | ne(own_pawns) | east(own_pawns))));
+
+        //score += phalanx_pawn * count(own_pawns & west(own_pawns));
+        //TraceAdd(phalanx_pawn, count(own_pawns & west(own_pawns)));
+
+        if (count(pos.colour[0] & pos.pieces[Bishop]) == 2) {
+            score += bishop_pair;
+            TraceIncr(bishop_pair);
+        }
 
         // For each piece type
         for (int p = 0; p < 6; ++p) {
@@ -445,6 +484,10 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_array(parameters, pst_rank, 48);
     get_initial_parameter_array(parameters, pst_file, 48);
     get_initial_parameter_array(parameters, open_files, 6);
+    //get_initial_parameter_array(parameters, protected_pawn, 6);
+    get_initial_parameter_single(parameters, protected_pawn);
+    //get_initial_parameter_single(parameters, phalanx_pawn);
+    get_initial_parameter_single(parameters, bishop_pair);
     return parameters;
 }
 
@@ -455,6 +498,10 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.pst_rank, 48);
     get_coefficient_array(coefficients, trace.pst_file, 48);
     get_coefficient_array(coefficients, trace.open_files, 6);
+    ///get_coefficient_array(coefficients, trace.protected_pawn, 6);
+    get_coefficient_single(coefficients, trace.protected_pawn);
+    //get_coefficient_single(coefficients, trace.phalanx_pawn);1
+    get_coefficient_single(coefficients, trace.bishop_pair);
     return coefficients;
 }
 
@@ -470,6 +517,10 @@ void FourkdotcppEval::print_parameters(const parameters_t& parameters)
     print_pst(ss, parameters_copy, index, "pst_rank");
     print_pst(ss, parameters_copy, index, "pst_file");
     print_array(ss, parameters_copy, index, "open_files", 6);
+    //print_array(ss, parameters_copy, index, "protected_pawn", 6);
+    print_single(ss, parameters_copy, index, "protected_pawn");
+    //print_single(ss, parameters_copy, index, "phalanx_pawn");
+    print_single(ss, parameters_copy, index, "bishop_pair");
     cout << ss.str() << "\n";
 }
 
