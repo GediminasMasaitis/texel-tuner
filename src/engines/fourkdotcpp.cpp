@@ -335,10 +335,10 @@ static Trace eval(Position& pos) {
                     }
                 }
 
-                const u64 mobility = get_mobility(sq, p /*== King ? Queen : p*/, &pos);
+                const u64 mobility = get_mobility(sq, p /*== King ? Queen : p*/, &pos) & ~attacked_by_pawns;
                 if (p > Pawn) {
-                    score += mobilities[p] * count(mobility & ~pos.colour[0] & ~attacked_by_pawns);
-                    TraceAdd(mobilities[p], count(mobility & ~pos.colour[0] & ~attacked_by_pawns));
+                    score += mobilities[p] * count(mobility & ~pos.colour[0]);
+                    TraceAdd(mobilities[p], count(mobility & ~pos.colour[0]));
 
                     if (p != Knight && p != King && p != Pawn) {
                         score += king_attacks[p] * count(mobility & opp_king_zone);
