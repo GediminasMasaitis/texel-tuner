@@ -362,7 +362,7 @@ static Trace eval(Position& pos) {
     auto stronger_colour_pawns_missing = 8 - stronger_colour_pawn_count;
     auto scale = (128 - stronger_colour_pawns_missing * stronger_colour_pawns_missing) / static_cast<tune_t>(128);
 
-    scale = 1;
+    //scale = 1;
     trace.endgame_scale = scale;
     trace.score = ((short)score * phase + ((score + 0x8000) >> 16) * scale * (24 - phase)) / 24;
 #else
