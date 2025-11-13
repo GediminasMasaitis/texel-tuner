@@ -231,10 +231,9 @@ struct Trace
     int king_attacks[6][2]{};
     int open_files[6][2]{};
     int protected_pawn[2]{};
+    //int phalanx_pawn[2]{};
     int passed_pawns[6][2]{};
     int passed_blocked_pawns[6][2]{};
-    //int passed_pawn[2]{};
-    //int phalanx_pawn[2]{};
     int bishop_pair[2]{};
 };
 
@@ -260,10 +259,9 @@ const i32 open_files[] = { 0,0,0,0,0,0 };
 const i32 mobilities[] = { 0,0,0,0,0,0 };
 const i32 king_attacks[] = { 0,0,0,0,0,0 };
 const i32 protected_pawn = 0;
-//const i32 passed_pawn = 0;
+//const i32 phalanx_pawn = 0;
 const i32 passed_pawns[] = { 0,0,0,0,0,0 };
 const i32 passed_blocked_pawns[] = { 0,0,0,0,0,0 };
-//const i32 phalanx_pawn = 0;
 const i32 bishop_pair = 0;
 
 #define TraceIncr(parameter) trace.parameter[color]++
@@ -296,8 +294,8 @@ static Trace eval(Position& pos) {
             TraceIncr(bishop_pair);
         }
 
-        //score -= protected_pawn * count(opp_pawns & attacked_by_pawns);
-        //TraceAdd(protected_pawn, -count(opp_pawns & attacked_by_pawns));
+        score -= protected_pawn * count(opp_pawns & attacked_by_pawns);
+        TraceAdd(protected_pawn, -count(opp_pawns & attacked_by_pawns));
 
         // For each piece type
         for (int p = 0; p < 6; ++p) {
