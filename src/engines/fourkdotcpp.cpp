@@ -231,7 +231,7 @@ struct Trace
     int king_attacks[6][2]{};
     int open_files[6][2]{};
     int protected_pawn[2]{};
-    //int phalanx_pawn[2]{};
+    int phalanx_pawn[2]{};
     int passed_pawns[6][2]{};
     int passed_blocked_pawns[6][2]{};
     int bishop_pair[2]{};
@@ -259,7 +259,7 @@ const i32 open_files[] = { 0,0,0,0,0,0 };
 const i32 mobilities[] = { 0,0,0,0,0,0 };
 const i32 king_attacks[] = { 0,0,0,0,0,0 };
 const i32 protected_pawn = 0;
-//const i32 phalanx_pawn = 0;
+const i32 phalanx_pawn = 0;
 const i32 passed_pawns[] = { 0,0,0,0,0,0 };
 const i32 passed_blocked_pawns[] = { 0,0,0,0,0,0 };
 const i32 bishop_pair = 0;
@@ -282,9 +282,6 @@ static Trace eval(Position& pos) {
         no_passers |= se(no_passers) | sw(no_passers);
         const u64 opp_king_zone = king(lsb(pos.colour[1] & pos.pieces[King]), 0);
 
-        //score += phalanx_pawn * count(own_pawns & west(own_pawns));
-        //TraceAdd(phalanx_pawn, count(own_pawns & west(own_pawns)));
-
         if (count(pos.colour[0] & pos.pieces[Bishop]) == 2) {
             score += bishop_pair;
             TraceIncr(bishop_pair);
@@ -292,6 +289,9 @@ static Trace eval(Position& pos) {
 
         score -= protected_pawn * count(opp_pawns & attacked_by_pawns);
         TraceAdd(protected_pawn, -count(opp_pawns & attacked_by_pawns));
+
+        score -= phalanx_pawn * count(opp_pawns & west(opp_pawns));
+        TraceAdd(phalanx_pawn, -count(opp_pawns & west(opp_pawns)));
 
         // For each piece type
         for (int p = 0; p < 6; ++p) {
@@ -577,6 +577,7 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_array(parameters, passed_pawns, 6);
     get_initial_parameter_array(parameters, passed_blocked_pawns, 6);
     get_initial_parameter_single(parameters, protected_pawn);
+    get_initial_parameter_single(parameters, phalanx_pawn);
     get_initial_parameter_single(parameters, bishop_pair);
     return parameters;
 }
@@ -593,6 +594,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.passed_pawns, 6);
     get_coefficient_array(coefficients, trace.passed_blocked_pawns, 6);
     get_coefficient_single(coefficients, trace.protected_pawn);
+    get_coefficient_single(coefficients, trace.phalanx_pawn);
     get_coefficient_single(coefficients, trace.bishop_pair);
     return coefficients;
 }
@@ -616,6 +618,7 @@ static void print_parameters_tapered(const parameters_t& parameters)
         print_array_tapered(ss, parameters, index, phase, "passed_pawns", 6);
         print_array_tapered(ss, parameters, index, phase, "passed_blocked_pawns", 6);
         print_single_tapered(ss, parameters, index, phase, "protected_pawn");
+        print_single_tapered(ss, parameters, index, phase, "phalanx_pawn");
         print_single_tapered(ss, parameters, index, phase, "bishop_pair");
     }
 
