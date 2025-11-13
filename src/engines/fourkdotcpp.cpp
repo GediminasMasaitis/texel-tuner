@@ -281,10 +281,6 @@ static Trace eval(Position& pos) {
         u64 no_passers = pos.colour[1] & pos.pieces[Pawn];
         no_passers |= se(no_passers) | sw(no_passers);
         const u64 opp_king_zone = king(lsb(pos.colour[1] & pos.pieces[King]), 0);
-        //const u64 pawn_protected = nw(own_pawns) | ne(own_pawns);
-
-        //score += protected_pawn * count(own_pawns & (nw(own_pawns) | ne(own_pawns)));
-        //TraceAdd(protected_pawn, count(own_pawns & (nw(own_pawns) | ne(own_pawns))));
 
         //score += phalanx_pawn * count(own_pawns & west(own_pawns));
         //TraceAdd(phalanx_pawn, count(own_pawns & west(own_pawns)));
