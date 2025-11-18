@@ -291,7 +291,7 @@ static Trace eval(Position& pos) {
         TraceAdd(protected_pawn, -count(opp_pawns & attacked_by_pawns));
 
         score -= phalanx_pawn * count(opp_pawns & west(opp_pawns));
-        TraceAdd(phalanx_pawn, count(opp_pawns & west(opp_pawns)));
+        TraceAdd(phalanx_pawn, -count(opp_pawns & west(opp_pawns)));
 
         // For each piece type
         for (int p = 0; p < 6; ++p) {
