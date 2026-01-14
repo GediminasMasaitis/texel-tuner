@@ -229,7 +229,7 @@ struct Trace
     int pst_file[48][2]{};
     int mobilities[6][2]{};
     int king_attacks[6][2]{};
-    int open_files[6][2]{};
+    int open_files[12][2]{};
     int protected_pawn[2]{};
     int phalanx_pawn[2]{};
     int passed_pawns[6][2]{};
@@ -255,7 +255,7 @@ const i32 pst_file[] = {
     S(-2, -3), S(-1, -1), S(-1, 0), S(0, 1),  S(0, 2),  S(1, 2),  S(2, 0),  S(1, -1),   // Queen
     S(-2, -5), S(2, -1),  S(-1, 1), S(-4, 2), S(-4, 2), S(-2, 2), S(2, -1), S(0, -5),   // King
 };
-const i32 open_files[] = { 0,0,0,0,0,0 };
+const i32 open_files[12] = { 0 };
 const i32 mobilities[] = { 0,0,0,0,0,0 };
 const i32 king_attacks[] = { 0,0,0,0,0,0 };
 const i32 protected_pawn = 0;
@@ -318,8 +318,8 @@ static Trace eval(Position& pos) {
                 const u64 in_front = 0x101010101010101ULL << sq;
 
                 if ((north(in_front) & own_pawns) == 0) {
-                    score += open_files[p];
-                    TraceIncr(open_files[p]);
+                    score += open_files[!(in_front & opp_pawns) * 6 + p];
+                    TraceIncr(open_files[!(in_front & opp_pawns) * 6 + p]);
                 }
 
                 if (p == Pawn && !(in_front & no_passers)) {
@@ -573,7 +573,7 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_array(parameters, pst_file, 48);
     get_initial_parameter_array(parameters, mobilities, 6);
     get_initial_parameter_array(parameters, king_attacks, 6);
-    get_initial_parameter_array(parameters, open_files, 6);
+    get_initial_parameter_array(parameters, open_files, 12);
     get_initial_parameter_array(parameters, passed_pawns, 6);
     get_initial_parameter_array(parameters, passed_blocked_pawns, 6);
     get_initial_parameter_single(parameters, protected_pawn);
@@ -590,7 +590,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.pst_file, 48);
     get_coefficient_array(coefficients, trace.mobilities, 6);
     get_coefficient_array(coefficients, trace.king_attacks, 6);
-    get_coefficient_array(coefficients, trace.open_files, 6);
+    get_coefficient_array(coefficients, trace.open_files, 12);
     get_coefficient_array(coefficients, trace.passed_pawns, 6);
     get_coefficient_array(coefficients, trace.passed_blocked_pawns, 6);
     get_coefficient_single(coefficients, trace.protected_pawn);
@@ -614,7 +614,7 @@ static void print_parameters_tapered(const parameters_t& parameters)
         print_pst_tapered(ss, parameters, index, phase, "pst_file");
         print_array_tapered(ss, parameters, index, phase, "mobilities", 6);
         print_array_tapered(ss, parameters, index, phase, "king_attacks", 6);
-        print_array_tapered(ss, parameters, index, phase, "open_files", 6);
+        print_array_tapered(ss, parameters, index, phase, "open_files", 12);
         print_array_tapered(ss, parameters, index, phase, "passed_pawns", 6);
         print_array_tapered(ss, parameters, index, phase, "passed_blocked_pawns", 6);
         print_single_tapered(ss, parameters, index, phase, "protected_pawn");
