@@ -235,6 +235,7 @@ struct Trace
     int passed_pawns[6][2]{};
     int passed_blocked_pawns[6][2]{};
     int bishop_pair[2]{};
+    int king_shield[2][2]{};
 };
 
 const i32 phases[] = {0, 1, 1, 2, 4, 0};
@@ -263,6 +264,7 @@ const i32 phalanx_pawn = 0;
 const i32 passed_pawns[] = { 0,0,0,0,0,0 };
 const i32 passed_blocked_pawns[] = { 0,0,0,0,0,0 };
 const i32 bishop_pair = 0;
+const i32 king_shield[2] = { 0 };
 
 #define TraceIncr(parameter) trace.parameter[color]++
 #define TraceAdd(parameter, count) trace.parameter[color] += count
@@ -341,6 +343,19 @@ static Trace eval(Position& pos) {
                         score += king_attacks[p] * count(mobility & opp_king_zone);
                         TraceAdd(king_attacks[p], count(mobility & opp_king_zone));
                     }
+                }
+
+                const u64 piece_bb = 1ULL << sq;
+                if (p == King && piece_bb & 0xC3D7) {
+                    // C3D7 = Reasonable king squares
+                    // Pawn cover is fixed in position, so it won't
+                    // walk around with the king.
+                    const u64 shield = file < 3 ? 0x700 : 0xE000;
+                    score += count(shield & own_pawns) * king_shield[0];
+                    TraceAdd(king_shield[0], count(shield & own_pawns));
+
+                    score += count(north(shield) & own_pawns) * king_shield[1];
+                    TraceAdd(king_shield[1], count(north(shield) & own_pawns));
                 }
             }
         }
@@ -579,6 +594,8 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_single(parameters, protected_pawn);
     get_initial_parameter_single(parameters, phalanx_pawn);
     get_initial_parameter_single(parameters, bishop_pair);
+    get_initial_parameter_array(parameters, king_shield, 2);
+
     return parameters;
 }
 
@@ -596,6 +613,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_single(coefficients, trace.protected_pawn);
     get_coefficient_single(coefficients, trace.phalanx_pawn);
     get_coefficient_single(coefficients, trace.bishop_pair);
+    get_coefficient_array(coefficients, trace.king_shield, 2);
     return coefficients;
 }
 
@@ -620,6 +638,7 @@ static void print_parameters_tapered(const parameters_t& parameters)
         print_single_tapered(ss, parameters, index, phase, "protected_pawn");
         print_single_tapered(ss, parameters, index, phase, "phalanx_pawn");
         print_single_tapered(ss, parameters, index, phase, "bishop_pair");
+        print_array_tapered(ss, parameters, index, phase, "king_shield", 2);
     }
 
     cout << ss.str() << "\n";
