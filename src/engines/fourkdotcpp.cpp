@@ -236,6 +236,8 @@ struct Trace
     int passed_blocked_pawns[6][2]{};
     int bishop_pair[2]{};
     int king_shield[2][2]{};
+    int bishop_pawns[2][2]{};
+    int pawn_threat[5][2]{};
 };
 
 const i32 phases[] = {0, 1, 1, 2, 4, 0};
@@ -265,6 +267,8 @@ const i32 passed_pawns[] = { 0,0,0,0,0,0 };
 const i32 passed_blocked_pawns[] = { 0,0,0,0,0,0 };
 const i32 bishop_pair = 0;
 const i32 king_shield[2] = { 0 };
+const i32 bishop_pawns[2] = { 0 };
+const i32 pawn_threat[5] = { 0 };
 
 #define TraceIncr(parameter) trace.parameter[color]++
 #define TraceAdd(parameter, count) trace.parameter[color] += count
@@ -279,6 +283,7 @@ static Trace eval(Position& pos) {
 
         const u64 own_pawns = pos.colour[0] & pos.pieces[Pawn];
         const u64 opp_pawns = pos.colour[1] & pos.pieces[Pawn];
+        const u64 pawns[2] = { own_pawns, opp_pawns };
         const u64 attacked_by_pawns = se(opp_pawns) | sw(opp_pawns);
         u64 no_passers = pos.colour[1] & pos.pieces[Pawn];
         no_passers |= se(no_passers) | sw(no_passers);
@@ -309,6 +314,8 @@ static Trace eval(Position& pos) {
 
                 const int rank = sq / 8;
                 const int file = sq % 8;
+
+                const u64 piece_bb = 1ULL << sq;
 
                 // Split quantized PSTs
                 score += pst_rank[p * 8 + rank] * 1;
@@ -343,9 +350,25 @@ static Trace eval(Position& pos) {
                         score += king_attacks[p] * count(mobility & opp_king_zone);
                         TraceAdd(king_attacks[p], count(mobility & opp_king_zone));
                     }
+
+                    if (in_front & ~piece_bb & attacked_by_pawns) {
+                        score += pawn_threat[p - 1];
+                        TraceIncr(pawn_threat[p - 1]);
+                    }
+
+                    // Pawns on bishop coloured squares
+                    if (p == Bishop) {
+                        u64 mask = 0xAA55AA55AA55AA55ull;
+                        if (piece_bb & ~mask) {
+                            mask = ~mask;
+                        }
+                        for (i32 i = 0; i < 2; i++) {
+                            score += bishop_pawns[i] * count(pawns[i] & mask);
+                            TraceAdd(bishop_pawns[i], count(pawns[i] & mask));
+                        }
+                    }
                 }
 
-                const u64 piece_bb = 1ULL << sq;
                 if (p == King && piece_bb & 0xC3D7) {
                     // C3D7 = Reasonable king squares
                     // Pawn cover is fixed in position, so it won't
@@ -588,12 +611,14 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_array(parameters, pst_file, 48);
     get_initial_parameter_array(parameters, mobilities, 6);
     get_initial_parameter_array(parameters, king_attacks, 6);
+    get_initial_parameter_array(parameters, pawn_threat, 5);
     get_initial_parameter_array(parameters, open_files, 12);
     get_initial_parameter_array(parameters, passed_pawns, 6);
     get_initial_parameter_array(parameters, passed_blocked_pawns, 6);
     get_initial_parameter_single(parameters, protected_pawn);
     get_initial_parameter_single(parameters, phalanx_pawn);
     get_initial_parameter_single(parameters, bishop_pair);
+    get_initial_parameter_array(parameters, bishop_pawns, 2);
     get_initial_parameter_array(parameters, king_shield, 2);
 
     return parameters;
@@ -607,12 +632,14 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.pst_file, 48);
     get_coefficient_array(coefficients, trace.mobilities, 6);
     get_coefficient_array(coefficients, trace.king_attacks, 6);
+    get_coefficient_array(coefficients, trace.pawn_threat, 5);
     get_coefficient_array(coefficients, trace.open_files, 12);
     get_coefficient_array(coefficients, trace.passed_pawns, 6);
     get_coefficient_array(coefficients, trace.passed_blocked_pawns, 6);
     get_coefficient_single(coefficients, trace.protected_pawn);
     get_coefficient_single(coefficients, trace.phalanx_pawn);
     get_coefficient_single(coefficients, trace.bishop_pair);
+    get_coefficient_array(coefficients, trace.bishop_pawns, 2);
     get_coefficient_array(coefficients, trace.king_shield, 2);
     return coefficients;
 }
@@ -632,12 +659,14 @@ static void print_parameters_tapered(const parameters_t& parameters)
         print_pst_tapered(ss, parameters, index, phase, "pst_file");
         print_array_tapered(ss, parameters, index, phase, "mobilities", 6);
         print_array_tapered(ss, parameters, index, phase, "king_attacks", 6);
+        print_array_tapered(ss, parameters, index, phase, "pawn_threat", 5);
         print_array_tapered(ss, parameters, index, phase, "open_files", 12);
         print_array_tapered(ss, parameters, index, phase, "passed_pawns", 6);
         print_array_tapered(ss, parameters, index, phase, "passed_blocked_pawns", 6);
         print_single_tapered(ss, parameters, index, phase, "protected_pawn");
         print_single_tapered(ss, parameters, index, phase, "phalanx_pawn");
         print_single_tapered(ss, parameters, index, phase, "bishop_pair");
+        print_array_tapered(ss, parameters, index, phase, "bishop_pawns", 2);
         print_array_tapered(ss, parameters, index, phase, "king_shield", 2);
     }
 
