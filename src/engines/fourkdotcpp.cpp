@@ -236,6 +236,7 @@ struct Trace
     int passed_blocked_pawns[6][2]{};
     int bishop_pair[2]{};
     int king_shield[2][2]{};
+    int pawn_threat[5][2]{};
 };
 
 const i32 phases[] = {0, 1, 1, 2, 4, 0};
@@ -265,6 +266,7 @@ const i32 passed_pawns[] = { 0,0,0,0,0,0 };
 const i32 passed_blocked_pawns[] = { 0,0,0,0,0,0 };
 const i32 bishop_pair = 0;
 const i32 king_shield[2] = { 0 };
+const i32 pawn_threat[5] = { 0 };
 
 #define TraceIncr(parameter) trace.parameter[color]++
 #define TraceAdd(parameter, count) trace.parameter[color] += count
@@ -310,6 +312,8 @@ static Trace eval(Position& pos) {
                 const int rank = sq / 8;
                 const int file = sq % 8;
 
+                const u64 piece_bb = 1ULL << sq;
+
                 // Split quantized PSTs
                 score += pst_rank[p * 8 + rank] * 1;
                 TraceAdd(pst_rank[p * 8 + rank], 1);
@@ -343,9 +347,13 @@ static Trace eval(Position& pos) {
                         score += king_attacks[p] * count(mobility & opp_king_zone);
                         TraceAdd(king_attacks[p], count(mobility & opp_king_zone));
                     }
+
+                    if (in_front & ~piece_bb & attacked_by_pawns) {
+                        score += pawn_threat[p - 1];
+                        TraceIncr(pawn_threat[p - 1]);
+                    }
                 }
 
-                const u64 piece_bb = 1ULL << sq;
                 if (p == King && piece_bb & 0xC3D7) {
                     // C3D7 = Reasonable king squares
                     // Pawn cover is fixed in position, so it won't
@@ -588,6 +596,7 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_array(parameters, pst_file, 48);
     get_initial_parameter_array(parameters, mobilities, 6);
     get_initial_parameter_array(parameters, king_attacks, 6);
+    get_initial_parameter_array(parameters, pawn_threat, 5);
     get_initial_parameter_array(parameters, open_files, 12);
     get_initial_parameter_array(parameters, passed_pawns, 6);
     get_initial_parameter_array(parameters, passed_blocked_pawns, 6);
@@ -607,6 +616,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.pst_file, 48);
     get_coefficient_array(coefficients, trace.mobilities, 6);
     get_coefficient_array(coefficients, trace.king_attacks, 6);
+    get_coefficient_array(coefficients, trace.pawn_threat, 5);
     get_coefficient_array(coefficients, trace.open_files, 12);
     get_coefficient_array(coefficients, trace.passed_pawns, 6);
     get_coefficient_array(coefficients, trace.passed_blocked_pawns, 6);
@@ -632,6 +642,7 @@ static void print_parameters_tapered(const parameters_t& parameters)
         print_pst_tapered(ss, parameters, index, phase, "pst_file");
         print_array_tapered(ss, parameters, index, phase, "mobilities", 6);
         print_array_tapered(ss, parameters, index, phase, "king_attacks", 6);
+        print_array_tapered(ss, parameters, index, phase, "pawn_threat", 5);
         print_array_tapered(ss, parameters, index, phase, "open_files", 12);
         print_array_tapered(ss, parameters, index, phase, "passed_pawns", 6);
         print_array_tapered(ss, parameters, index, phase, "passed_blocked_pawns", 6);
