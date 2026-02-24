@@ -16,21 +16,22 @@ using i32 = int;
 
 enum
 {
+    None,
     Pawn,
     Knight,
     Bishop,
     Rook,
     Queen,
-    King,
-    None
+    King
 };
 
-static std::string pc_to_str[] = {"Pawn", "Knight", "Bishop", "Rook", "Queen", "King", "None"};
+static std::string pc_to_str[] = { "None", "Pawn", "Knight", "Bishop", "Rook", "Queen", "King" };
 
 struct [[nodiscard]] Position {
     array<int, 4> castling = { true, true, true, true };
     array<u64, 2> colour = { 0xFFFFULL, 0xFFFF000000000000ULL };
-    array<u64, 6> pieces = { 0xFF00000000FF00ULL,
+    array<u64, 7> pieces = { 0,
+                            0xFF00000000FF00ULL,
                             0x4200000000000042ULL,
                             0x2400000000000024ULL,
                             0x8100000000000081ULL,
@@ -96,7 +97,7 @@ struct [[nodiscard]] Position {
 static void flip(Position& pos) {
     pos.colour[0] = flip(pos.colour[0]);
     pos.colour[1] = flip(pos.colour[1]);
-    for (int i = 0; i < 6; ++i) {
+    for (int i = 0; i < 7; ++i) {
         pos.pieces[i] = flip(pos.pieces[i]);
     }
     pos.ep = flip(pos.ep);
@@ -199,24 +200,24 @@ static void set_fen(Position& pos, const string& fen) {
 [[nodiscard]] static u64 get_mobility(const i32 sq, const i32 piece,
     const Position* pos) {
     u64 moves = 0;
-/*    if (piece == Pawn) {
-        moves = north(1ULL << sq);
-    } else*/ if (piece == Knight) {
-        moves = knight(sq, 0);
-    }
-    else if (piece == King) {
-        moves = king(sq, 0);
-    }
-    else {
-        const u64 blockers = pos->colour[0] | pos->colour[1];
-        if (piece == Rook || piece == Queen) {
-            moves |= rook(sq, blockers);
+    /*    if (piece == Pawn) {
+            moves = north(1ULL << sq);
+        } else*/ if (piece == Knight) {
+            moves = knight(sq, 0);
         }
-        if (piece == Bishop || piece == Queen) {
-            moves |= bishop(sq, blockers);
+        else if (piece == King) {
+            moves = king(sq, 0);
         }
-    }
-    return moves;
+        else {
+            const u64 blockers = pos->colour[0] | pos->colour[1];
+            if (piece == Rook || piece == Queen) {
+                moves |= rook(sq, blockers);
+            }
+            if (piece == Bishop || piece == Queen) {
+                moves |= bishop(sq, blockers);
+            }
+        }
+        return moves;
 }
 
 struct Trace
@@ -227,8 +228,8 @@ struct Trace
     int material[6][2]{};
     int pst_rank[48][2]{};
     int pst_file[48][2]{};
-    int mobilities[6][2]{};
-    int king_attacks[6][2]{};
+    int mobilities[5][2]{};
+    int king_attacks[5][2]{};
     int open_files[12][2]{};
     int protected_pawn[2]{};
     int phalanx_pawn[2]{};
@@ -240,8 +241,8 @@ struct Trace
     int pawn_threat[5][2]{};
 };
 
-const i32 phases[] = {0, 1, 1, 2, 4, 0};
-const i32 material[] = {S(89, 147), S(350, 521), S(361, 521), S(479, 956), S(1046, 1782), 0};
+const i32 phases[] = { 0, 0, 1, 1, 2, 4, 0 };
+const i32 material[] = { S(89, 147), S(350, 521), S(361, 521), S(479, 956), S(1046, 1782), 0 };
 const i32 pst_rank[] = {
     0,         S(-3, 0),  S(-3, -1), S(-1, -1), S(1, 0),  S(5, 3),  0,        0,          // Pawn
     S(-2, -5), S(0, -3),  S(1, -1),  S(3, 3),   S(4, 4),  S(5, 1),  S(2, 0),  S(-15, 1),  // Knight
@@ -259,8 +260,8 @@ const i32 pst_file[] = {
     S(-2, -5), S(2, -1),  S(-1, 1), S(-4, 2), S(-4, 2), S(-2, 2), S(2, -1), S(0, -5),   // King
 };
 const i32 open_files[12] = { 0 };
-const i32 mobilities[] = { 0,0,0,0,0,0 };
-const i32 king_attacks[] = { 0,0,0,0,0,0 };
+const i32 mobilities[] = { 0,0,0,0,0 };
+const i32 king_attacks[] = { 0,0,0,0,0 };
 const i32 protected_pawn = 0;
 const i32 phalanx_pawn = 0;
 const i32 passed_pawns[] = { 0,0,0,0,0,0 };
@@ -301,7 +302,7 @@ static Trace eval(Position& pos) {
         TraceAdd(phalanx_pawn, -count(opp_pawns & west(opp_pawns)));
 
         // For each piece type
-        for (int p = 0; p < 6; ++p) {
+        for (int p = Pawn; p <= King; ++p) {
             auto copy = pos.colour[0] & pos.pieces[p];
             while (copy) {
                 const int sq = lsb(copy);
@@ -309,8 +310,8 @@ static Trace eval(Position& pos) {
 
                 // Material
                 phase += phases[p];
-                score += material[p];
-                TraceIncr(material[p]);
+                score += material[p - 1];
+                TraceIncr(material[p - 1]);
 
                 const int rank = sq / 8;
                 const int file = sq % 8;
@@ -318,22 +319,22 @@ static Trace eval(Position& pos) {
                 const u64 piece_bb = 1ULL << sq;
 
                 // Split quantized PSTs
-                score += pst_rank[p * 8 + rank] * 1;
-                TraceAdd(pst_rank[p * 8 + rank], 1);
+                score += pst_rank[(p - 1) * 8 + rank] * 1;
+                TraceAdd(pst_rank[(p - 1) * 8 + rank], 1);
 
-                score += pst_file[p * 8 + file] * 1;
-                TraceAdd(pst_file[p * 8 + file], 1);
+                score += pst_file[(p - 1) * 8 + file] * 1;
+                TraceAdd(pst_file[(p - 1) * 8 + file], 1);
 
                 const u64 in_front = 0x101010101010101ULL << sq;
 
                 if ((north(in_front) & own_pawns) == 0) {
-                    score += open_files[!(in_front & opp_pawns) * 6 + p];
-                    TraceIncr(open_files[!(in_front & opp_pawns) * 6 + p]);
+                    score += open_files[!(in_front & opp_pawns) * 6 + (p - 1)];
+                    TraceIncr(open_files[!(in_front & opp_pawns) * 6 + (p - 1)]);
                 }
 
                 if (p == Pawn && !(in_front & no_passers)) {
-                    score += passed_pawns[rank-1];
-                    TraceIncr(passed_pawns[rank-1]);
+                    score += passed_pawns[rank - 1];
+                    TraceIncr(passed_pawns[rank - 1]);
 
                     if (north(1ULL << sq) & pos.colour[1]) {
                         score += passed_blocked_pawns[rank - 1];
@@ -343,17 +344,17 @@ static Trace eval(Position& pos) {
 
                 const u64 mobility = get_mobility(sq, p /*== King ? Queen : p*/, &pos);
                 if (p > Pawn) {
-                    score += mobilities[p] * count(mobility & ~pos.colour[0] & ~attacked_by_pawns);
-                    TraceAdd(mobilities[p], count(mobility & ~pos.colour[0] & ~attacked_by_pawns));
+                    score += mobilities[p - 2] * count(mobility & ~pos.colour[0] & ~attacked_by_pawns);
+                    TraceAdd(mobilities[p - 2], count(mobility & ~pos.colour[0] & ~attacked_by_pawns));
 
                     if (p != Knight && p != King && p != Pawn) {
-                        score += king_attacks[p] * count(mobility & opp_king_zone);
-                        TraceAdd(king_attacks[p], count(mobility & opp_king_zone));
+                        score += king_attacks[p - 2] * count(mobility & opp_king_zone);
+                        TraceAdd(king_attacks[p - 2], count(mobility & opp_king_zone));
                     }
 
                     if (in_front & ~piece_bb & attacked_by_pawns) {
-                        score += pawn_threat[p - 1];
-                        TraceIncr(pawn_threat[p - 1]);
+                        score += pawn_threat[p - 2];
+                        TraceIncr(pawn_threat[p - 2]);
                     }
 
                     // Pawns on bishop coloured squares
@@ -508,7 +509,7 @@ static void print_pst_tapered(std::stringstream& ss, const parameters_t& paramet
 
         if (i % 8 == 7)
         {
-            ss << "// " << pc_to_str[i / 8] << "\n";
+            ss << "// " << pc_to_str[i / 8 + 1] << "\n";
         }
     }
     ss << "}," << endl;
@@ -526,7 +527,7 @@ static void print_pst(std::stringstream& ss, const parameters_t& parameters, int
 
         if (i % 8 == 7)
         {
-            ss << "// " << pc_to_str[i / 8] << "\n";
+            ss << "// " << pc_to_str[i / 8 + 1] << "\n";
         }
     }
     ss << "};" << endl;
@@ -609,8 +610,8 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_array(parameters, material, 6);
     get_initial_parameter_array(parameters, pst_rank, 48);
     get_initial_parameter_array(parameters, pst_file, 48);
-    get_initial_parameter_array(parameters, mobilities, 6);
-    get_initial_parameter_array(parameters, king_attacks, 6);
+    get_initial_parameter_array(parameters, mobilities, 5);
+    get_initial_parameter_array(parameters, king_attacks, 5);
     get_initial_parameter_array(parameters, pawn_threat, 5);
     get_initial_parameter_array(parameters, open_files, 12);
     get_initial_parameter_array(parameters, passed_pawns, 6);
@@ -630,8 +631,8 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.material, 6);
     get_coefficient_array(coefficients, trace.pst_rank, 48);
     get_coefficient_array(coefficients, trace.pst_file, 48);
-    get_coefficient_array(coefficients, trace.mobilities, 6);
-    get_coefficient_array(coefficients, trace.king_attacks, 6);
+    get_coefficient_array(coefficients, trace.mobilities, 5);
+    get_coefficient_array(coefficients, trace.king_attacks, 5);
     get_coefficient_array(coefficients, trace.pawn_threat, 5);
     get_coefficient_array(coefficients, trace.open_files, 12);
     get_coefficient_array(coefficients, trace.passed_pawns, 6);
@@ -654,11 +655,21 @@ static void print_parameters_tapered(const parameters_t& parameters)
         ss << (phase == PhaseStages::Midgame ? "MIDGAME:" : "ENDGAME:") << endl;
         int index = 0;
 
-        print_array_tapered(ss, parameters, index, phase, "material", 6);
+        // Material: print {0, Pawn..Queen}, skip King (always 0)
+        ss << ".material = {0, ";
+        for (auto j = 0; j < 5; j++)
+        {
+            print_parameter_tapered(ss, phase, parameters[index]);
+            index++;
+            if (j != 4) ss << ", ";
+        }
+        index++; // skip King
+        ss << "}," << endl;
+
         print_pst_tapered(ss, parameters, index, phase, "pst_rank");
         print_pst_tapered(ss, parameters, index, phase, "pst_file");
-        print_array_tapered(ss, parameters, index, phase, "mobilities", 6);
-        print_array_tapered(ss, parameters, index, phase, "king_attacks", 6);
+        print_array_tapered(ss, parameters, index, phase, "mobilities", 5);
+        print_array_tapered(ss, parameters, index, phase, "king_attacks", 5);
         print_array_tapered(ss, parameters, index, phase, "pawn_threat", 5);
         print_array_tapered(ss, parameters, index, phase, "open_files", 12);
         print_array_tapered(ss, parameters, index, phase, "passed_pawns", 6);
@@ -685,11 +696,11 @@ void FourkdotcppEval::print_parameters(const parameters_t& parameters)
 
     int index = 0;
     stringstream ss;
-    print_array(ss, parameters_copy, index, "material", 6);
+    print_array(ss, parameters_copy, index, "material", 5);
     print_pst(ss, parameters_copy, index, "pst_rank");
     print_pst(ss, parameters_copy, index, "pst_file");
-    print_array(ss, parameters_copy, index, "mobilities", 6);
-    print_array(ss, parameters_copy, index, "king_attacks", 6);
+    print_array(ss, parameters_copy, index, "mobilities", 5);
+    print_array(ss, parameters_copy, index, "king_attacks", 5);
     print_array(ss, parameters_copy, index, "open_files", 6);
     print_single(ss, parameters_copy, index, "bishop_pair");
     cout << ss.str() << "\n";
@@ -717,11 +728,11 @@ static Position get_position_from_external(const chess::Board& board)
     position.castling[3] = board.castlingRights().has(chess::Color::BLACK, chess::Board::CastlingRights::Side::QUEEN_SIDE);
 
     position.ep = board.enpassantSq().index();
-    if(position.ep == 64)
+    if (position.ep == 64)
     {
         position.ep = 0;
     }
-    if(position.ep != 0)
+    if (position.ep != 0)
     {
         position.ep = 1ULL << position.ep;
     }
@@ -730,13 +741,6 @@ static Position get_position_from_external(const chess::Board& board)
     {
         flip(position);
     }
-
-    //Position position2;
-    //set_fen(position2, board.getFen());
-    //if(position != position2)
-    //{
-    //    throw std::runtime_error("Position mismatch");
-    //}
 
     return position;
 }
