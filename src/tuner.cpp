@@ -919,6 +919,14 @@ void Tuner::run(const std::vector<DataSource>& sources)
             
         }
 
+        // Clamp i8 parameters (index 6+) to [-128, 127]
+        for (int parameter_index = 6; parameter_index < parameters.size(); parameter_index++) {
+            for (int phase_stage = 0; phase_stage < 2; phase_stage++) {
+                parameters[parameter_index][phase_stage] = std::min(parameters[parameter_index][phase_stage], 127.0);
+                parameters[parameter_index][phase_stage] = std::max(parameters[parameter_index][phase_stage], -128.0);
+            }
+        }
+
         if (epoch % 100 == 0)
         {
             const auto elapsed_ms = duration_cast<milliseconds>(high_resolution_clock::now() - loop_start).count();
