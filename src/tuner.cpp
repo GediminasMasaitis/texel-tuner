@@ -30,7 +30,7 @@ struct WdlMarker
 struct CoefficientEntry
 {
     int16_t value;
-    int16_t index;
+    int32_t index;
 };
 
 struct Entry
@@ -55,7 +55,7 @@ static const array<WdlMarker, 4> markers
     WdlMarker{"0-1", 0}
 };
 
-static tune_t get_fen_wdl(const string& original_fen, const bool original_white_to_move, const bool white_to_move, const bool side_to_move_wdl)
+static tune_t get_fen_wdl(const string& original_fen, const bool original_white_to_move, const bool side_to_move_wdl)
 {
     tune_t wdl;
     bool marker_found = false;
@@ -109,7 +109,12 @@ static tune_t get_fen_wdl(const string& original_fen, const bool original_white_
 
 static bool get_fen_color_to_move(const string& fen)
 {
-    return fen.find('w') != std::string::npos;
+    auto space_pos = fen.find(' ');
+    if (space_pos != string::npos && space_pos + 1 < fen.size())
+    {
+        return fen[space_pos + 1] == 'w';
+    }
+    return true;
 }
 
 static void print_elapsed(high_resolution_clock::time_point start)
@@ -127,7 +132,7 @@ static void get_coefficient_entries(const coefficients_t& coefficients, vector<C
         throw runtime_error("Parameter count mismatch");
     }
 
-    for (int16_t i = 0; i < coefficients.size(); i++)
+    for (int32_t i = 0; i < static_cast<int32_t>(coefficients.size()); i++)
     {
         if (coefficients[i] == 0)
         {
@@ -413,7 +418,7 @@ static tune_t quiescence(chess::Board& board, const parameters_t& parameters, pv
         return alpha;
     }
 
-    tune_t best_score = -inf;
+    tune_t best_score = alpha;
     auto best_move = chess::Move(chess::Move::NO_MOVE);
     //for (const auto& move : movelist) {
     for(int32_t move_index = 0; move_index < moves.size(); move_index++)
@@ -553,7 +558,7 @@ static void parse_fen(const bool side_to_move_wdl, const parameters_t& parameter
 #endif
     const bool original_white_to_move = get_fen_color_to_move(original_fen);
     //cout << (entry.white_to_move ? "w" : "b") << " ";
-    entry.wdl = get_fen_wdl(original_fen, original_white_to_move, entry.white_to_move, side_to_move_wdl);
+    entry.wdl = get_fen_wdl(original_fen, original_white_to_move, side_to_move_wdl);
     get_coefficient_entries(eval_result.coefficients, entry.coefficients, static_cast<int32_t>(parameters.size()));
 #if TAPERED
     entry.phase = get_phase(board);
@@ -694,16 +699,15 @@ static tune_t sigmoid(const tune_t K, const tune_t eval)
 
 static tune_t get_average_error(ThreadPool& thread_pool, const vector<Entry>& entries, const parameters_t& parameters, tune_t K)
 {
-    array<tune_t, thread_count> thread_errors;
+    array<tune_t, thread_count> thread_errors{};
     for(int thread_id = 0; thread_id < thread_count; thread_id++)
     {
         thread_pool.enqueue([thread_id, &thread_errors, &entries, &parameters, K]()
         {
-            const auto entries_per_thread = entries.size() / thread_count;
-            const auto start = static_cast<int>(thread_id * entries_per_thread);
-            const auto end = static_cast<int>((thread_id + 1) * entries_per_thread - 1);
+            const auto start = static_cast<int64_t>(thread_id) * entries.size() / thread_count;
+            const auto end = static_cast<int64_t>(thread_id + 1) * entries.size() / thread_count;
             tune_t error = 0;
-            for (int i = start; i < end; i++)
+            for (int64_t i = start; i < end; i++)
             {
                 const auto& entry = entries[i];
                 const auto eval = linear_eval(entry, parameters);
@@ -777,15 +781,14 @@ static void compute_gradient(ThreadPool& thread_pool, parameters_t& gradient, co
     {
         thread_pool.enqueue([thread_id, &thread_gradients, &entries, &params, K]()
         {
-            const auto entries_per_thread = entries.size() / thread_count;
-            const auto start = static_cast<int>(thread_id * entries_per_thread);
-            const auto end = static_cast<int>((thread_id + 1) * entries_per_thread - 1);
+            const auto start = static_cast<int64_t>(thread_id) * entries.size() / thread_count;
+            const auto end = static_cast<int64_t>(thread_id + 1) * entries.size() / thread_count;
 #if TAPERED
             parameters_t gradient = parameters_t(params.size(), pair_t{});
 #else
             parameters_t gradient = parameters_t(params.size(), 0);
 #endif
-            for (int i = start; i < end; i++)
+            for (int64_t i = start; i < end; i++)
             {
                 const auto& entry = entries[i];
                 update_single_gradient(gradient, entry, params, K);
@@ -900,6 +903,8 @@ void Tuner::run(const std::vector<DataSource>& sources)
 
         constexpr tune_t beta1 = 0.9;
         constexpr tune_t beta2 = 0.999;
+        const tune_t bias_correction1 = 1 - pow(beta1, epoch);
+        const tune_t bias_correction2 = 1 - pow(beta2, epoch);
 
         for (int parameter_index = 0; parameter_index < parameters.size(); parameter_index++) {
 #if TAPERED
@@ -908,13 +913,17 @@ void Tuner::run(const std::vector<DataSource>& sources)
                 const tune_t grad = -K / static_cast<tune_t>(400) * gradient[parameter_index][phase_stage] / static_cast<tune_t>(entries.size());
                 momentum[parameter_index][phase_stage] = beta1 * momentum[parameter_index][phase_stage] + (1 - beta1) * grad;
                 velocity[parameter_index][phase_stage] = beta2 * velocity[parameter_index][phase_stage] + (1 - beta2) * pow(grad, 2);
-                parameters[parameter_index][phase_stage] -= learning_rate * momentum[parameter_index][phase_stage] / (static_cast<tune_t>(1e-8) + sqrt(velocity[parameter_index][phase_stage]));
+                const tune_t corrected_momentum = momentum[parameter_index][phase_stage] / bias_correction1;
+                const tune_t corrected_velocity = velocity[parameter_index][phase_stage] / bias_correction2;
+                parameters[parameter_index][phase_stage] -= learning_rate * corrected_momentum / (static_cast<tune_t>(1e-8) + sqrt(corrected_velocity));
             }
 #else
             const tune_t grad = -K / 400.0 * gradient[parameter_index] / static_cast<tune_t>(entries.size());
             momentum[parameter_index] = beta1 * momentum[parameter_index] + (1 - beta1) * grad;
             velocity[parameter_index] = beta2 * velocity[parameter_index] + (1 - beta2) * pow(grad, 2);
-            parameters[parameter_index] -= learning_rate * momentum[parameter_index] / (1e-8 + sqrt(velocity[parameter_index]));
+            const tune_t corrected_momentum = momentum[parameter_index] / bias_correction1;
+            const tune_t corrected_velocity = velocity[parameter_index] / bias_correction2;
+            parameters[parameter_index] -= learning_rate * corrected_momentum / (1e-8 + sqrt(corrected_velocity));
 #endif
             
         }

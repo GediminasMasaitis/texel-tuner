@@ -58,14 +58,14 @@ int main(int argc, char** argv) {
             }
 
             string position_limit_str;
-            if (!getline(ss, flipped_wdl_str, ','))
+            if (!getline(ss, position_limit_str, ','))
             {
                 cout << "CSV misformatted" << endl;
                 return -1;
             }
             try
             {
-                source.position_limit = stoll(flipped_wdl_str);
+                source.position_limit = stoll(position_limit_str);
             }
             catch (const std::invalid_argument&)
             {
