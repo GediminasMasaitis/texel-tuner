@@ -239,6 +239,8 @@ struct Trace
     int king_shield[2][2]{};
     int bishop_pawns[2][2]{};
     int pawn_threat[5][2]{};
+    int king_danger_squared[2]{};
+    int tempo[2]{};
 };
 
 const i32 phases[] = { 0, 0, 1, 1, 2, 4, 0 };
@@ -270,13 +272,16 @@ const i32 bishop_pair = 0;
 const i32 king_shield[2] = { 0 };
 const i32 bishop_pawns[2] = { 0 };
 const i32 pawn_threat[5] = { 0 };
+const i32 king_danger_squared = 0;
+const i32 tempo = S(16, 8);
 
 #define TraceIncr(parameter) trace.parameter[color]++
 #define TraceAdd(parameter, count) trace.parameter[color] += count
 
 static Trace eval(Position& pos) {
     Trace trace{};
-    int score = S(16, 8);
+    int score = tempo;
+    trace.tempo[pos.flipped]++;
     int phase = 0;
 
     for (int c = 0; c < 2; ++c) {
@@ -302,6 +307,7 @@ static Trace eval(Position& pos) {
         TraceAdd(phalanx_pawn, -count(opp_pawns & west(opp_pawns)));
 
         // For each piece type
+        int total_king_attacks = 0;
         for (int p = Pawn; p <= King; ++p) {
             auto copy = pos.colour[0] & pos.pieces[p];
             while (copy) {
@@ -348,8 +354,10 @@ static Trace eval(Position& pos) {
                     TraceAdd(mobilities[p - 2], count(mobility & ~pos.colour[0] & ~attacked_by_pawns));
 
                     if (p != Knight && p != King && p != Pawn) {
-                        score += king_attacks[p - 2] * count(mobility & opp_king_zone);
-                        TraceAdd(king_attacks[p - 2], count(mobility & opp_king_zone));
+                        const int attacks = count(mobility & opp_king_zone);
+                        score += king_attacks[p - 2] * attacks;
+                        TraceAdd(king_attacks[p - 2], attacks);
+                        total_king_attacks += attacks;
                     }
 
                     if (in_front & ~piece_bb & attacked_by_pawns) {
@@ -383,6 +391,9 @@ static Trace eval(Position& pos) {
                 }
             }
         }
+
+        score += king_danger_squared * total_king_attacks * total_king_attacks;
+        TraceAdd(king_danger_squared, total_king_attacks * total_king_attacks);
 
         flip(pos);
 
@@ -621,6 +632,8 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_single(parameters, bishop_pair);
     get_initial_parameter_array(parameters, bishop_pawns, 2);
     get_initial_parameter_array(parameters, king_shield, 2);
+    get_initial_parameter_single(parameters, king_danger_squared);
+    get_initial_parameter_single(parameters, tempo);
 
     return parameters;
 }
@@ -642,6 +655,8 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_single(coefficients, trace.bishop_pair);
     get_coefficient_array(coefficients, trace.bishop_pawns, 2);
     get_coefficient_array(coefficients, trace.king_shield, 2);
+    get_coefficient_single(coefficients, trace.king_danger_squared);
+    get_coefficient_single(coefficients, trace.tempo);
     return coefficients;
 }
 
@@ -679,6 +694,8 @@ static void print_parameters_tapered(const parameters_t& parameters)
         print_single_tapered(ss, parameters, index, phase, "bishop_pair");
         print_array_tapered(ss, parameters, index, phase, "bishop_pawns", 2);
         print_array_tapered(ss, parameters, index, phase, "king_shield", 2);
+        print_single_tapered(ss, parameters, index, phase, "king_danger_squared");
+        print_single_tapered(ss, parameters, index, phase, "tempo");
     }
 
     cout << ss.str() << "\n";
