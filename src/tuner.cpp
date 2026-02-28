@@ -759,18 +759,38 @@ static tune_t find_optimal_k(ThreadPool& thread_pool, const vector<Entry>& entri
     return K;
 }
 
-static void update_single_gradient(parameters_t& gradient, const Entry& entry, const CoefficientEntry* all_coefficients, const parameters_t& params, tune_t K) {
-
-    const tune_t eval = linear_eval(entry, all_coefficients, params);
-    const tune_t sig = sigmoid(K, eval);
-    const tune_t res = (entry.wdl - sig) * sig * (1 - sig);
+static void eval_and_update_gradient(parameters_t& gradient, const Entry& entry, const CoefficientEntry* all_coefficients, const parameters_t& params, tune_t K) {
 
     const auto* coefficients = all_coefficients + entry.coeff_offset;
     const auto count = entry.coeff_count;
 
+    // First pass: compute linear eval
+    tune_t score = entry.additional_score;
+#if TAPERED
+    tune_t midgame = 0;
+    tune_t endgame = 0;
+    for (uint16_t ci = 0; ci < count; ci++)
+    {
+        const auto& coefficient = coefficients[ci];
+        midgame += coefficient.value * params[coefficient.index][static_cast<int32_t>(PhaseStages::Midgame)];
+        endgame += coefficient.value * params[coefficient.index][static_cast<int32_t>(PhaseStages::Endgame)];
+    }
+    score += (midgame * entry.phase + endgame * entry.endgame_scale * (24 - entry.phase)) / 24;
+#else
+    for (uint16_t ci = 0; ci < count; ci++)
+    {
+        score += coefficients[ci].value * params[coefficients[ci].index];
+    }
+#endif
+
+    // Sigmoid + derivative
+    const tune_t sig = sigmoid(K, score);
+    const tune_t res = (entry.wdl - sig) * sig * (1 - sig);
+
+    // Second pass: accumulate gradient (coefficients still in L1)
 #if TAPERED
     const auto mg_base = res * (entry.phase / static_cast<tune_t>(24));
-    const auto eg_base = res - mg_base;
+    const auto eg_base = (res - mg_base) * entry.endgame_scale;
 #endif
 
     for (uint16_t ci = 0; ci < count; ci++)
@@ -778,7 +798,7 @@ static void update_single_gradient(parameters_t& gradient, const Entry& entry, c
         const auto& coefficient = coefficients[ci];
 #if TAPERED
         gradient[coefficient.index][static_cast<int32_t>(PhaseStages::Midgame)] += mg_base * coefficient.value;
-        gradient[coefficient.index][static_cast<int32_t>(PhaseStages::Endgame)] += eg_base * coefficient.value * entry.endgame_scale;
+        gradient[coefficient.index][static_cast<int32_t>(PhaseStages::Endgame)] += eg_base * coefficient.value;
 #else
         gradient[coefficient.index] += res * coefficient.value;
 #endif
@@ -801,7 +821,7 @@ static void compute_gradient(ThreadPool& thread_pool, parameters_t& gradient, ar
 #endif
             for (int64_t i = start; i < end; i++)
             {
-                update_single_gradient(local_gradient, entries[i], all_coefficients, params, K);
+                eval_and_update_gradient(local_gradient, entries[i], all_coefficients, params, K);
             }
         });
     }
