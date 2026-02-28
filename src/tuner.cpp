@@ -619,6 +619,10 @@ static void read_fens(const DataSource& source, const high_resolution_clock::tim
 
         string original_fen;
         getline(file, original_fen);
+        if (!original_fen.empty() && original_fen.back() == '\r')
+        {
+            original_fen.pop_back();
+        }
         if (original_fen.empty())
         {
             break;
