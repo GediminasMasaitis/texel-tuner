@@ -239,7 +239,7 @@ struct Trace
     int king_shield[2][2]{};
     int bishop_pawns[2][2]{};
     int pawn_threat[5][2]{};
-    int king_danger_squared[2]{};
+    int king_danger_table[5][2]{};
     int tempo[2]{};
 };
 
@@ -272,7 +272,7 @@ const i32 bishop_pair = 0;
 const i32 king_shield[2] = { 0 };
 const i32 bishop_pawns[2] = { 0 };
 const i32 pawn_threat[5] = { 0 };
-const i32 king_danger_squared = 0;
+const i32 king_danger_table[5] = { 0, 0, 0, 0, 0 };
 const i32 tempo = S(16, 8);
 
 #define TraceIncr(parameter) trace.parameter[color]++
@@ -357,8 +357,11 @@ static Trace eval(Position& pos) {
                         const int attacks = count(mobility & opp_king_zone);
                         score += king_attacks[p - 2] * attacks;
                         TraceAdd(king_attacks[p - 2], attacks);
-                        total_king_attacks += attacks;
                     }
+
+                    // Binary: does this piece attack the king zone?
+                    if (p != King && (mobility & opp_king_zone))
+                        total_king_attacks++;
 
                     if (in_front & ~piece_bb & attacked_by_pawns) {
                         score += pawn_threat[p - 2];
@@ -392,8 +395,9 @@ static Trace eval(Position& pos) {
             }
         }
 
-        score += king_danger_squared * total_king_attacks * total_king_attacks;
-        TraceAdd(king_danger_squared, total_king_attacks * total_king_attacks);
+        int danger_idx = total_king_attacks < 5 ? total_king_attacks : 4;
+        score += king_danger_table[danger_idx];
+        TraceIncr(king_danger_table[danger_idx]);
 
         flip(pos);
 
@@ -632,7 +636,7 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_single(parameters, bishop_pair);
     get_initial_parameter_array(parameters, bishop_pawns, 2);
     get_initial_parameter_array(parameters, king_shield, 2);
-    get_initial_parameter_single(parameters, king_danger_squared);
+    get_initial_parameter_array(parameters, king_danger_table, 5);
     get_initial_parameter_single(parameters, tempo);
 
     return parameters;
@@ -655,7 +659,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_single(coefficients, trace.bishop_pair);
     get_coefficient_array(coefficients, trace.bishop_pawns, 2);
     get_coefficient_array(coefficients, trace.king_shield, 2);
-    get_coefficient_single(coefficients, trace.king_danger_squared);
+    get_coefficient_array(coefficients, trace.king_danger_table, 5);
     get_coefficient_single(coefficients, trace.tempo);
     return coefficients;
 }
@@ -694,7 +698,7 @@ static void print_parameters_tapered(const parameters_t& parameters)
         print_single_tapered(ss, parameters, index, phase, "bishop_pair");
         print_array_tapered(ss, parameters, index, phase, "bishop_pawns", 2);
         print_array_tapered(ss, parameters, index, phase, "king_shield", 2);
-        print_single_tapered(ss, parameters, index, phase, "king_danger_squared");
+        print_array_tapered(ss, parameters, index, phase, "king_danger_table", 5);
         print_single_tapered(ss, parameters, index, phase, "tempo");
     }
 
