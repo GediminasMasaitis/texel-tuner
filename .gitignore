@@ -10,6 +10,6 @@ CMakeFiles
 CMakeSettings.json
 CMakeCache.txt
 cmake_install.cmake
-Makefile
 sources.csv
 src/tuner.exe
+src/tuner

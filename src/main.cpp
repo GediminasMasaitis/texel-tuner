@@ -5,9 +5,24 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <algorithm>
 
 using namespace std;
 using namespace Tuner;
+
+static string normalize_path(string path)
+{
+#ifndef _WIN32
+    // Convert Windows paths to WSL paths when running on Linux
+    // e.g. "C:\Chess\data.epd" -> "/mnt/c/Chess/data.epd"
+    if (path.size() >= 3 && isalpha(path[0]) && path[1] == ':' && (path[2] == '\\' || path[2] == '/'))
+    {
+        path = "/mnt/" + string(1, tolower(path[0])) + path.substr(2);
+    }
+    std::replace(path.begin(), path.end(), '\\', '/');
+#endif
+    return path;
+}
 
 int main(int argc, char** argv) {
     vector<DataSource> sources;
@@ -28,6 +43,11 @@ int main(int argc, char** argv) {
             string line;
             getline(csv, line);
 
+            if(!line.empty() && line.back() == '\r')
+            {
+                line.pop_back();
+            }
+
             if(line.empty() || line.starts_with('#'))
             {
                 continue;
@@ -40,6 +60,7 @@ int main(int argc, char** argv) {
                 cout << "CSV misformatted" << endl;
                 return -1;
             }
+            source.path = normalize_path(source.path);
 
             string flipped_wdl_str;
             if (!getline(ss, flipped_wdl_str, ','))
@@ -58,14 +79,14 @@ int main(int argc, char** argv) {
             }
 
             string position_limit_str;
-            if (!getline(ss, flipped_wdl_str, ','))
+            if (!getline(ss, position_limit_str, ','))
             {
                 cout << "CSV misformatted" << endl;
                 return -1;
             }
             try
             {
-                source.position_limit = stoll(flipped_wdl_str);
+                source.position_limit = stoll(position_limit_str);
             }
             catch (const std::invalid_argument&)
             {

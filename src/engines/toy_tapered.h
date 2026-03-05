@@ -24,6 +24,7 @@ namespace Toy
         constexpr static bool filter_in_check = false;
         constexpr static tune_t initial_learning_rate = 1;
         constexpr static int32_t learning_rate_drop_interval = 10000;
+        constexpr static bool adam_bias_correction = false;
         constexpr static tune_t learning_rate_drop_ratio = 1;
 
         static parameters_t get_initial_parameters();
