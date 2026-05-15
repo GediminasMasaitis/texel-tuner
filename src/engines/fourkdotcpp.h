@@ -1,7 +1,7 @@
 #ifndef FOURKU_H
 #define FOURKU_H 1
 
-#define TAPERED 0 
+#define TAPERED 1
 
 #include "../base.h"
 #include "../external/chess.hpp"
@@ -24,6 +24,7 @@ namespace Fourkdotcpp
         constexpr static tune_t initial_learning_rate = 1;
         constexpr static int32_t learning_rate_drop_interval = 10000;
         constexpr static tune_t learning_rate_drop_ratio = 1;
+        constexpr static bool adam_bias_correction = false;
         constexpr static bool print_data_entries = false;
         constexpr static int32_t data_load_print_interval = 10000;
 
