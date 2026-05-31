@@ -9,6 +9,7 @@
 #include <cmath>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <thread>
@@ -846,6 +847,27 @@ static void compute_gradient(ThreadPool& thread_pool, parameters_t& gradient, ar
     }
 }
 
+// Optional per-engine quantization clamp. An engine that stores eval terms in a
+// narrow integer type can define quantized_parameter_start / quantized_min /
+// quantized_max; the tuner then projects those parameters back into range after
+// every update so the remaining terms tune around the representable values.
+// Engines that do not define these members are left completely unclamped.
+template <class T> constexpr int32_t quantized_start()
+{
+    if constexpr (requires { T::quantized_parameter_start; }) return T::quantized_parameter_start;
+    else return std::numeric_limits<int32_t>::max();
+}
+template <class T> constexpr tune_t quantized_lo()
+{
+    if constexpr (requires { T::quantized_min; }) return static_cast<tune_t>(T::quantized_min);
+    else return -std::numeric_limits<tune_t>::infinity();
+}
+template <class T> constexpr tune_t quantized_hi()
+{
+    if constexpr (requires { T::quantized_max; }) return static_cast<tune_t>(T::quantized_max);
+    else return std::numeric_limits<tune_t>::infinity();
+}
+
 void Tuner::run(const std::vector<DataSource>& sources)
 {
     cout << "Starting tuning" << endl << endl;
@@ -976,6 +998,15 @@ void Tuner::run(const std::vector<DataSource>& sources)
                 const tune_t corrected_momentum = momentum[parameter_index][phase_stage] / bias_correction1;
                 const tune_t corrected_velocity = velocity[parameter_index][phase_stage] / bias_correction2;
                 parameters[parameter_index][phase_stage] -= learning_rate * corrected_momentum / (static_cast<tune_t>(1e-8) + sqrt(corrected_velocity));
+
+                // Projected gradient descent: keep int8-stored terms within the
+                // engine's representable range so the other parameters tune
+                // around the clamped value instead of an unstorable optimum.
+                if (parameter_index >= quantized_start<TuneEval>())
+                {
+                    parameters[parameter_index][phase_stage] = std::clamp(
+                        parameters[parameter_index][phase_stage], quantized_lo<TuneEval>(), quantized_hi<TuneEval>());
+                }
             }
 #else
             const tune_t grad = -K / 400.0 * gradient[parameter_index] / static_cast<tune_t>(entries.size());
