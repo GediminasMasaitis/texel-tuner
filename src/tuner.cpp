@@ -67,22 +67,33 @@ struct Entry
 #endif
     std::array<int16_t, SAFETY_COUNT> safety_white{};
     std::array<int16_t, SAFETY_COUNT> safety_black{};
-    tune_t safety_base_white = 0;
+    tune_t safety_base_white = 0;     // midgame no-queen baseline (added to S_mg)
     tune_t safety_base_black = 0;
+    tune_t safety_base_white_eg = 0;  // endgame no-queen baseline (added to S_eg)
+    tune_t safety_base_black_eg = 0;
 };
 
 #if TAPERED
-static inline void compute_safety(const Entry& entry, const parameters_t& params, tune_t& sw, tune_t& sb)
+// Recompute the pre-finalized safety value S for each side, both phases, from the
+// current weights. The per-side counts are phase-independent; only the weights differ.
+static inline void compute_safety(const Entry& entry, const parameters_t& params,
+                                  tune_t& sw_mg, tune_t& sw_eg, tune_t& sb_mg, tune_t& sb_eg)
 {
-    sw = entry.safety_base_white;
-    sb = entry.safety_base_black;
     constexpr auto MG = static_cast<int32_t>(PhaseStages::Midgame);
+    constexpr auto EG = static_cast<int32_t>(PhaseStages::Endgame);
+    sw_mg = entry.safety_base_white;
+    sb_mg = entry.safety_base_black;
+    sw_eg = entry.safety_base_white_eg;
+    sb_eg = entry.safety_base_black_eg;
     for (int32_t k = 0; k < SAFETY_COUNT; k++)
     {
-        sw += entry.safety_white[k] * params[SAFETY_START + k][MG];
-        sb += entry.safety_black[k] * params[SAFETY_START + k][MG];
+        sw_mg += entry.safety_white[k] * params[SAFETY_START + k][MG];
+        sb_mg += entry.safety_black[k] * params[SAFETY_START + k][MG];
+        sw_eg += entry.safety_white[k] * params[SAFETY_START + k][EG];
+        sb_eg += entry.safety_black[k] * params[SAFETY_START + k][EG];
     }
 }
+// Quadratic finalizer: max(S,0)*S / divisor. Applied per phase.
 static inline tune_t safety_finalize(const tune_t s)
 {
     return s > 0 ? s * s / SAFETY_DIVISOR : 0;
@@ -98,6 +109,8 @@ static inline void set_entry_safety(Entry& entry, const EvalResult& eval_result)
     }
     entry.safety_base_white = eval_result.safety_offset_white;
     entry.safety_base_black = eval_result.safety_offset_black;
+    entry.safety_base_white_eg = eval_result.safety_offset_white_eg;
+    entry.safety_base_black_eg = eval_result.safety_offset_black_eg;
 }
 
 static const array<WdlMarker, 4> markers
@@ -217,9 +230,10 @@ static tune_t linear_eval(const Entry& entry, const CoefficientEntry* all_coeffi
     }
     if constexpr (SAFETY_COUNT > 0)
     {
-        tune_t sw, sb;
-        compute_safety(entry, parameters, sw, sb);
-        midgame += safety_finalize(sw) - safety_finalize(sb);
+        tune_t sw_mg, sw_eg, sb_mg, sb_eg;
+        compute_safety(entry, parameters, sw_mg, sw_eg, sb_mg, sb_eg);
+        midgame += safety_finalize(sw_mg) - safety_finalize(sb_mg);
+        endgame += safety_finalize(sw_eg) - safety_finalize(sb_eg);
     }
     score += (midgame * entry.phase + endgame * entry.endgame_scale * (24 - entry.phase)) / 24;
 #else
@@ -840,11 +854,12 @@ static void eval_and_update_gradient(parameters_t& gradient, const Entry& entry,
         midgame += coefficient.value * params[coefficient.index][static_cast<int32_t>(PhaseStages::Midgame)];
         endgame += coefficient.value * params[coefficient.index][static_cast<int32_t>(PhaseStages::Endgame)];
     }
-    tune_t sw = 0, sb = 0;
+    tune_t sw_mg = 0, sw_eg = 0, sb_mg = 0, sb_eg = 0;
     if constexpr (SAFETY_COUNT > 0)
     {
-        compute_safety(entry, params, sw, sb);
-        midgame += safety_finalize(sw) - safety_finalize(sb);
+        compute_safety(entry, params, sw_mg, sw_eg, sb_mg, sb_eg);
+        midgame += safety_finalize(sw_mg) - safety_finalize(sb_mg);
+        endgame += safety_finalize(sw_eg) - safety_finalize(sb_eg);
     }
     score += (midgame * entry.phase + endgame * entry.endgame_scale * (24 - entry.phase)) / 24;
 #else
@@ -878,14 +893,22 @@ static void eval_and_update_gradient(parameters_t& gradient, const Entry& entry,
 #if TAPERED
     if constexpr (SAFETY_COUNT > 0)
     {
+        // King-safety gradient per phase: d/dL_k [ max(S,0)*S / D ] = (2/D)*max(S,0)*count_k.
+        // MG tapered by mg_base, EG by eg_base (which already folds in endgame_scale).
+        // White's attack is a bonus (+), black's a malus (-).
         constexpr auto MG = static_cast<int32_t>(PhaseStages::Midgame);
+        constexpr auto EG = static_cast<int32_t>(PhaseStages::Endgame);
         const tune_t scale = static_cast<tune_t>(2) / SAFETY_DIVISOR;
-        const tune_t fw = sw > 0 ? sw : 0;
-        const tune_t fb = sb > 0 ? sb : 0;
+        const tune_t fw_mg = sw_mg > 0 ? sw_mg : 0;
+        const tune_t fb_mg = sb_mg > 0 ? sb_mg : 0;
+        const tune_t fw_eg = sw_eg > 0 ? sw_eg : 0;
+        const tune_t fb_eg = sb_eg > 0 ? sb_eg : 0;
         for (int32_t k = 0; k < SAFETY_COUNT; k++)
         {
-            const tune_t d = fw * entry.safety_white[k] - fb * entry.safety_black[k];
-            gradient[SAFETY_START + k][MG] += mg_base * scale * d;
+            const tune_t dmg = fw_mg * entry.safety_white[k] - fb_mg * entry.safety_black[k];
+            const tune_t deg = fw_eg * entry.safety_white[k] - fb_eg * entry.safety_black[k];
+            gradient[SAFETY_START + k][MG] += mg_base * scale * dmg;
+            gradient[SAFETY_START + k][EG] += eg_base * scale * deg;
         }
     }
 #endif

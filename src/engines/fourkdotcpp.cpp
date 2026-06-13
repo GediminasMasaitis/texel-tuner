@@ -272,9 +272,9 @@ const i32 mobilities[] = { 0,0,0,0,0 };
 // as a SAFETY term (Andrew Grant's method): the tuner stores the per-side ring-attack
 // counts, recomputes S each epoch, and uses the analytic gradient of the square. The
 // values below are only starting points (retune_from_zero re-derives them).
-const i32 king_attacks[] = { 40, 19, 28, 25, 26 };
-const i32 king_attack_no_queen = -97; // baseline added to S if the attacking side has no queen (fixed)
-const i32 king_attack_divisor = 160;  // quadratic divisor: max(S,0)*S / divisor (fixed)
+const i32 king_attacks[] = { S(40, 40), S(19, 19), S(28, 28), S(25, 25), S(26, 26) };
+const i32 king_attack_no_queen = S(-97, -97); // baseline added to S if the attacking side has no queen (fixed)
+const i32 king_attack_divisor = 160;          // quadratic divisor: max(S,0)*S / divisor (fixed)
 const i32 protected_pawn = 0;
 const i32 phalanx_pawn = 0;
 const i32 passed_pawns[] = { 0,0,0,0,0,0 };
@@ -310,10 +310,10 @@ static Trace eval(Position& pos) {
         no_passers |= se(no_passers) | sw(no_passers);
         const u64 opp_king_zone = king(lsb(pos.colour[1] & pos.pieces[King]), 0);
 
-        // KING RING ATTACK (ice4-style): per-side pre-finalized safety value S,
-        // turned into a quadratic after the piece loop. The per-piece ring-attack
-        // counts and the no-queen baseline are recorded into the trace as a SAFETY
-        // term so the tuner can differentiate through the square (Andrew Grant).
+        // KING RING ATTACK (ice4-style): per-side pre-finalized safety value S, kept as a
+        // packed S(mg,eg) accumulator and finalized quadratically per phase after the loop.
+        // The per-piece ring-attack counts and the packed no-queen baseline are recorded
+        // into the trace as a SAFETY term so the tuner can differentiate the square (Grant).
         const int king_attack_base = king_attack_no_queen * !count(pos.colour[0] & pos.pieces[Queen]);
         int king_attack = king_attack_base;
         trace.king_safety_base[color] = king_attack_base;
@@ -429,8 +429,12 @@ static Trace eval(Position& pos) {
             }
         }
 
-        // KING RING ATTACK: apply the quadratic (midgame-only; added to score's low half)
-        score += king_attack > 0 ? king_attack * king_attack / king_attack_divisor : 0;
+        // KING RING ATTACK: apply the quadratic to each phase. king_attack is a packed
+        // S(mg,eg) accumulator, so finalize the mg and eg halves independently.
+        const int ka_mg = mg_score(king_attack);
+        const int ka_eg = eg_score(king_attack);
+        score += S(ka_mg > 0 ? ka_mg * ka_mg / king_attack_divisor : 0,
+                   ka_eg > 0 ? ka_eg * ka_eg / king_attack_divisor : 0);
 
         flip(pos);
 
@@ -816,8 +820,10 @@ static void fill_safety(EvalResult& result, const Trace& trace)
         result.safety_white[k] = static_cast<int16_t>(trace.king_safety[k][0]);
         result.safety_black[k] = static_cast<int16_t>(trace.king_safety[k][1]);
     }
-    result.safety_offset_white = trace.king_safety_base[0];
-    result.safety_offset_black = trace.king_safety_base[1];
+    result.safety_offset_white = mg_score(trace.king_safety_base[0]);
+    result.safety_offset_black = mg_score(trace.king_safety_base[1]);
+    result.safety_offset_white_eg = eg_score(trace.king_safety_base[0]);
+    result.safety_offset_black_eg = eg_score(trace.king_safety_base[1]);
 }
 
 EvalResult FourkdotcppEval::get_fen_eval_result(const string& fen)

@@ -26,8 +26,10 @@ struct EvalResult
 
     coefficients_t safety_white;
     coefficients_t safety_black;
-    tune_t safety_offset_white = 0;
+    tune_t safety_offset_white = 0;     // midgame no-queen baseline added to S_mg
     tune_t safety_offset_black = 0;
+    tune_t safety_offset_white_eg = 0;  // endgame no-queen baseline added to S_eg
+    tune_t safety_offset_black_eg = 0;
 };
 
 #if TAPERED
