@@ -992,14 +992,22 @@ void Tuner::run(const std::vector<DataSource>& sources)
 
     if constexpr (TuneEval::retune_from_zero)
     {
-        for (auto& parameter : parameters)
+        for (size_t pi = 0; pi < parameters.size(); pi++)
         {
+            if constexpr (SAFETY_COUNT > 0)
+            {
+                if (static_cast<int32_t>(pi) >= SAFETY_START &&
+                    static_cast<int32_t>(pi) < SAFETY_START + SAFETY_COUNT)
+                {
+                    continue;
+                }
+            }
 #if TAPERED
-            parameter[static_cast<int>(PhaseStages::Midgame)] = static_cast<tune_t>(0);
-            parameter[static_cast<int>(PhaseStages::Endgame)] = static_cast<tune_t>(0);
+            parameters[pi][static_cast<int>(PhaseStages::Midgame)] = static_cast<tune_t>(0);
+            parameters[pi][static_cast<int>(PhaseStages::Endgame)] = static_cast<tune_t>(0);
 #else
-            parameter = static_cast<tune_t>(0);
-#endif            
+            parameters[pi] = static_cast<tune_t>(0);
+#endif
         }
     }
 
