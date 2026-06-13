@@ -229,6 +229,7 @@ struct Trace
     int pst_rank[48][2]{};
     int pst_file[48][2]{};
     int mobilities[5][2]{};
+    int king_attacks[5][2]{};
     int open_files[12][2]{};
     int protected_pawn[2]{};
     int phalanx_pawn[2]{};
@@ -240,11 +241,6 @@ struct Trace
     int pawn_threat[5][2]{};
     int pawn_attacked_penalty[2][2]{};
     int tempo[2]{};
-
-    // King-safety (SAFETY method): per-side ring-attack counts that feed the
-    // pre-finalized safety value S, plus the fixed no-queen baseline added to S.
-    int king_safety[5][2]{};  // [piece Pawn..Queen][color] = enemy-king-ring squares attacked
-    int king_safety_base[2]{};// [color] = no-queen baseline contribution to S
 };
 
 const i32 phases[] = { 0, 0, 1, 1, 2, 4, 0 };
@@ -267,14 +263,7 @@ const i32 pst_file[] = {
 };
 const i32 open_files[12] = { 0 };
 const i32 mobilities[] = { 0,0,0,0,0 };
-// King-ring attack weights (ice4-style), indexed by piece type Pawn..Queen.
-// These feed a QUADRATIC finalizer (max(S,0)*S / divisor, see eval). They are tuned
-// as a SAFETY term (Andrew Grant's method): the tuner stores the per-side ring-attack
-// counts, recomputes S each epoch, and uses the analytic gradient of the square. The
-// values below are only starting points (retune_from_zero re-derives them).
-const i32 king_attacks[] = { S(40, 40), S(19, 19), S(28, 28), S(25, 25), S(26, 26) };
-const i32 king_attack_no_queen = S(-97, -97); // baseline added to S if the attacking side has no queen (fixed)
-const i32 king_attack_divisor = 160;          // quadratic divisor: max(S,0)*S / divisor (fixed)
+const i32 king_attacks[] = { 0,0,0,0,0 };
 const i32 protected_pawn = 0;
 const i32 phalanx_pawn = 0;
 const i32 passed_pawns[] = { 0,0,0,0,0,0 };
@@ -309,14 +298,6 @@ static Trace eval(Position& pos) {
         u64 no_passers = pos.colour[1] & pos.pieces[Pawn];
         no_passers |= se(no_passers) | sw(no_passers);
         const u64 opp_king_zone = king(lsb(pos.colour[1] & pos.pieces[King]), 0);
-
-        // KING RING ATTACK (ice4-style): per-side pre-finalized safety value S, kept as a
-        // packed S(mg,eg) accumulator and finalized quadratically per phase after the loop.
-        // The per-piece ring-attack counts and the packed no-queen baseline are recorded
-        // into the trace as a SAFETY term so the tuner can differentiate the square (Grant).
-        const int king_attack_base = king_attack_no_queen * !count(pos.colour[0] & pos.pieces[Queen]);
-        int king_attack = king_attack_base;
-        trace.king_safety_base[color] = king_attack_base;
 
         if (count(pos.colour[0] & pos.pieces[Bishop]) == 2) {
             score += bishop_pair;
@@ -371,23 +352,13 @@ static Trace eval(Position& pos) {
                 }
 
                 const u64 mobility = get_mobility(sq, p /*== King ? Queen : p*/, &pos);
-
-                // KING RING ATTACK for pawns: own pawn attacks landing on the enemy king ring
-                if (p == Pawn) {
-                    const int ring = count((ne(piece_bb) | nw(piece_bb)) & opp_king_zone);
-                    king_attack += king_attacks[0] * ring;
-                    trace.king_safety[0][color] += ring;
-                }
-
                 if (p > Pawn) {
                     score += mobilities[p - 2] * count(mobility & ~pos.colour[0] & ~attacked_by_pawns);
                     TraceAdd(mobilities[p - 2], count(mobility & ~pos.colour[0] & ~attacked_by_pawns));
 
-                    // KING RING ATTACK: accumulate knights/sliders (quadratic after loop)
-                    if (p < King) {
-                        const int ring = count(mobility & opp_king_zone);
-                        king_attack += king_attacks[p - 1] * ring;
-                        trace.king_safety[p - 1][color] += ring;
+                    if (p != Knight && p != King && p != Pawn) {
+                        score += king_attacks[p - 2] * count(mobility & opp_king_zone);
+                        TraceAdd(king_attacks[p - 2], count(mobility & opp_king_zone));
                     }
 
                     if (in_front & ~piece_bb & attacked_by_pawns) {
@@ -428,13 +399,6 @@ static Trace eval(Position& pos) {
                 }
             }
         }
-
-        // KING RING ATTACK: apply the quadratic to each phase. king_attack is a packed
-        // S(mg,eg) accumulator, so finalize the mg and eg halves independently.
-        const int ka_mg = mg_score(king_attack);
-        const int ka_eg = eg_score(king_attack);
-        score += S(ka_mg > 0 ? ka_mg * ka_mg / king_attack_divisor : 0,
-                   ka_eg > 0 ? ka_eg * ka_eg / king_attack_divisor : 0);
 
         flip(pos);
 
@@ -663,8 +627,6 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_array(parameters, pst_rank, 48);
     get_initial_parameter_array(parameters, pst_file, 48);
     get_initial_parameter_array(parameters, mobilities, 5);
-    // king_attacks: tuned as a SAFETY term (see eval / linear_eval). Must stay at this
-    // position so safety_parameter_start (in fourkdotcpp.h) points at king_attacks[0].
     get_initial_parameter_array(parameters, king_attacks, 5);
     get_initial_parameter_array(parameters, pawn_threat, 5);
     get_initial_parameter_array(parameters, open_files, 12);
@@ -688,10 +650,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.pst_rank, 48);
     get_coefficient_array(coefficients, trace.pst_file, 48);
     get_coefficient_array(coefficients, trace.mobilities, 5);
-    // king_attacks occupy 5 slots in the parameter vector but contribute 0 to the
-    // LINEAR part: their effect is the quadratic SAFETY term, applied in linear_eval
-    // via the per-side counts (EvalResult::safety_*), not through these coefficients.
-    for (int i = 0; i < 5; i++) coefficients.push_back(0);
+    get_coefficient_array(coefficients, trace.king_attacks, 5);
     get_coefficient_array(coefficients, trace.pawn_threat, 5);
     get_coefficient_array(coefficients, trace.open_files, 12);
     get_coefficient_array(coefficients, trace.passed_pawns, 6);
@@ -808,24 +767,6 @@ static Position get_position_from_external(const chess::Board& board)
     return position;
 }
 
-// Copy the per-side king-safety counts (and fixed no-queen baseline) into the result
-// so the tuner can recompute S = king_attacks . counts and differentiate the square.
-// Color index 0 = White, 1 = Black (matches get_coefficient_single: white - black).
-static void fill_safety(EvalResult& result, const Trace& trace)
-{
-    result.safety_white.assign(5, 0);
-    result.safety_black.assign(5, 0);
-    for (int k = 0; k < 5; k++)
-    {
-        result.safety_white[k] = static_cast<int16_t>(trace.king_safety[k][0]);
-        result.safety_black[k] = static_cast<int16_t>(trace.king_safety[k][1]);
-    }
-    result.safety_offset_white = mg_score(trace.king_safety_base[0]);
-    result.safety_offset_black = mg_score(trace.king_safety_base[1]);
-    result.safety_offset_white_eg = eg_score(trace.king_safety_base[0]);
-    result.safety_offset_black_eg = eg_score(trace.king_safety_base[1]);
-}
-
 EvalResult FourkdotcppEval::get_fen_eval_result(const string& fen)
 {
     Position position;
@@ -835,7 +776,6 @@ EvalResult FourkdotcppEval::get_fen_eval_result(const string& fen)
     result.coefficients = get_coefficients(trace);
     result.score = trace.score;
     result.endgame_scale = trace.endgame_scale;
-    fill_safety(result, trace);
     return result;
 }
 
@@ -847,7 +787,6 @@ EvalResult FourkdotcppEval::get_external_eval_result(const chess::Board& board)
     result.coefficients = get_coefficients(trace);
     result.score = trace.score;
     result.endgame_scale = trace.endgame_scale;
-    fill_safety(result, trace);
 
     return result;
 }

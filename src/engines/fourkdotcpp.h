@@ -38,16 +38,6 @@ namespace Fourkdotcpp
         constexpr static tune_t quantized_min = -128;
         constexpr static tune_t quantized_max = 127;
 
-        // Non-linear king-safety term (Andrew Grant's method). The safety weights
-        // (king_attacks, Pawn..Queen) occupy [safety_parameter_start, +count) in the
-        // parameter vector. The tuner recomputes S = weights . per-side-counts (+ a
-        // fixed offset) each epoch and applies the finalizer max(S,0)*S / safety_divisor
-        // (midgame only), differentiating through it analytically. Index 107 = after
-        // material(6) + pst_rank(48) + pst_file(48) + mobilities(5).
-        constexpr static int32_t safety_parameter_start = 107;
-        constexpr static int32_t safety_parameter_count = 5;
-        constexpr static tune_t safety_divisor = 160;
-
         static parameters_t get_initial_parameters();
         static EvalResult get_fen_eval_result(const std::string& fen);
         static EvalResult get_external_eval_result(const chess::Board& board);
