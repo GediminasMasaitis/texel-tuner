@@ -23,6 +23,25 @@ using namespace Tuner;
 static_assert(false, "Tuner requires TAPERED to be defined")
 #endif
 
+template <class T> constexpr int32_t safety_start_v()
+{
+    if constexpr (requires { T::safety_parameter_start; }) return T::safety_parameter_start;
+    else return -1;
+}
+template <class T> constexpr int32_t safety_count_v()
+{
+    if constexpr (requires { T::safety_parameter_count; }) return T::safety_parameter_count;
+    else return 0;
+}
+template <class T> constexpr tune_t safety_divisor_v()
+{
+    if constexpr (requires { T::safety_divisor; }) return static_cast<tune_t>(T::safety_divisor);
+    else return 1;
+}
+constexpr int32_t SAFETY_COUNT = safety_count_v<TuneEval>();
+constexpr int32_t SAFETY_START = safety_start_v<TuneEval>();
+constexpr tune_t SAFETY_DIVISOR = safety_divisor_v<TuneEval>();
+
 struct WdlMarker
 {
     string marker;
@@ -46,7 +65,40 @@ struct Entry
     int32_t phase;
     tune_t endgame_scale;
 #endif
+    std::array<int16_t, SAFETY_COUNT> safety_white{};
+    std::array<int16_t, SAFETY_COUNT> safety_black{};
+    tune_t safety_base_white = 0;
+    tune_t safety_base_black = 0;
 };
+
+#if TAPERED
+static inline void compute_safety(const Entry& entry, const parameters_t& params, tune_t& sw, tune_t& sb)
+{
+    sw = entry.safety_base_white;
+    sb = entry.safety_base_black;
+    constexpr auto MG = static_cast<int32_t>(PhaseStages::Midgame);
+    for (int32_t k = 0; k < SAFETY_COUNT; k++)
+    {
+        sw += entry.safety_white[k] * params[SAFETY_START + k][MG];
+        sb += entry.safety_black[k] * params[SAFETY_START + k][MG];
+    }
+}
+static inline tune_t safety_finalize(const tune_t s)
+{
+    return s > 0 ? s * s / SAFETY_DIVISOR : 0;
+}
+#endif
+
+static inline void set_entry_safety(Entry& entry, const EvalResult& eval_result)
+{
+    for (int32_t k = 0; k < SAFETY_COUNT; k++)
+    {
+        entry.safety_white[k] = k < static_cast<int32_t>(eval_result.safety_white.size()) ? eval_result.safety_white[k] : static_cast<int16_t>(0);
+        entry.safety_black[k] = k < static_cast<int32_t>(eval_result.safety_black.size()) ? eval_result.safety_black[k] : static_cast<int16_t>(0);
+    }
+    entry.safety_base_white = eval_result.safety_offset_white;
+    entry.safety_base_black = eval_result.safety_offset_black;
+}
 
 static const array<WdlMarker, 4> markers
 {
@@ -162,6 +214,12 @@ static tune_t linear_eval(const Entry& entry, const CoefficientEntry* all_coeffi
         const auto& coefficient = coefficients[ci];
         midgame += coefficient.value * parameters[coefficient.index][static_cast<int32_t>(PhaseStages::Midgame)];
         endgame += coefficient.value * parameters[coefficient.index][static_cast<int32_t>(PhaseStages::Endgame)];
+    }
+    if constexpr (SAFETY_COUNT > 0)
+    {
+        tune_t sw, sb;
+        compute_safety(entry, parameters, sw, sb);
+        midgame += safety_finalize(sw) - safety_finalize(sb);
     }
     score += (midgame * entry.phase + endgame * entry.endgame_scale * (24 - entry.phase)) / 24;
 #else
@@ -395,6 +453,7 @@ static tune_t quiescence(chess::Board& board, const parameters_t& parameters, pv
     entry.endgame_scale = eval_result.endgame_scale;
 #endif
     get_coefficient_entries(eval_result.coefficients, scratch, entry, static_cast<int32_t>(parameters.size()));
+    set_entry_safety(entry, eval_result);
 #if TAPERED
     entry.phase = get_phase(board);
 #endif
@@ -573,6 +632,7 @@ static void parse_fen(const bool side_to_move_wdl, const parameters_t& parameter
     //cout << (entry.white_to_move ? "w" : "b") << " ";
     entry.wdl = get_fen_wdl(original_fen, original_white_to_move, side_to_move_wdl);
     get_coefficient_entries(eval_result.coefficients, all_coefficients, entry, static_cast<int32_t>(parameters.size()));
+    set_entry_safety(entry, eval_result);
 #if TAPERED
     entry.phase = get_phase(board);
 #endif
@@ -780,6 +840,12 @@ static void eval_and_update_gradient(parameters_t& gradient, const Entry& entry,
         midgame += coefficient.value * params[coefficient.index][static_cast<int32_t>(PhaseStages::Midgame)];
         endgame += coefficient.value * params[coefficient.index][static_cast<int32_t>(PhaseStages::Endgame)];
     }
+    tune_t sw = 0, sb = 0;
+    if constexpr (SAFETY_COUNT > 0)
+    {
+        compute_safety(entry, params, sw, sb);
+        midgame += safety_finalize(sw) - safety_finalize(sb);
+    }
     score += (midgame * entry.phase + endgame * entry.endgame_scale * (24 - entry.phase)) / 24;
 #else
     for (uint16_t ci = 0; ci < count; ci++)
@@ -808,6 +874,21 @@ static void eval_and_update_gradient(parameters_t& gradient, const Entry& entry,
         gradient[coefficient.index] += res * coefficient.value;
 #endif
     }
+
+#if TAPERED
+    if constexpr (SAFETY_COUNT > 0)
+    {
+        constexpr auto MG = static_cast<int32_t>(PhaseStages::Midgame);
+        const tune_t scale = static_cast<tune_t>(2) / SAFETY_DIVISOR;
+        const tune_t fw = sw > 0 ? sw : 0;
+        const tune_t fb = sb > 0 ? sb : 0;
+        for (int32_t k = 0; k < SAFETY_COUNT; k++)
+        {
+            const tune_t d = fw * entry.safety_white[k] - fb * entry.safety_black[k];
+            gradient[SAFETY_START + k][MG] += mg_base * scale * d;
+        }
+    }
+#endif
 }
 
 static void compute_gradient(ThreadPool& thread_pool, parameters_t& gradient, array<parameters_t, thread_count>& thread_gradients, const vector<Entry>& entries, const CoefficientEntry* all_coefficients, const parameters_t& params, tune_t K)

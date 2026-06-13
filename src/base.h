@@ -23,6 +23,11 @@ struct EvalResult
     coefficients_t coefficients;
     tune_t score;
     tune_t endgame_scale = 1;
+
+    coefficients_t safety_white;
+    coefficients_t safety_black;
+    tune_t safety_offset_white = 0;
+    tune_t safety_offset_black = 0;
 };
 
 #if TAPERED
