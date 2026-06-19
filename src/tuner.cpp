@@ -951,25 +951,14 @@ static void compute_gradient(ThreadPool& thread_pool, parameters_t& gradient, ar
     }
 }
 
-// Optional per-engine quantization clamp. An engine that stores eval terms in a
-// narrow integer type can define quantized_parameter_start / quantized_min /
-// quantized_max; the tuner then projects those parameters back into range after
-// every update so the remaining terms tune around the representable values.
-// Engines that do not define these members are left completely unclamped.
-template <class T> constexpr int32_t quantized_start()
+// Optional per-engine parameter bounds. An engine can define get_parameter_bounds()
+// returning a per-parameter, per-phase [lower, upper] box; the tuner then projects
+// each parameter back into its box after every update (projected gradient descent)
+// so the remaining terms tune around any floors/ceilings. Engines that do not
+// define it are left completely unclamped.
+template <class T> constexpr bool has_parameter_bounds()
 {
-    if constexpr (requires { T::quantized_parameter_start; }) return T::quantized_parameter_start;
-    else return std::numeric_limits<int32_t>::max();
-}
-template <class T> constexpr tune_t quantized_lo()
-{
-    if constexpr (requires { T::quantized_min; }) return static_cast<tune_t>(T::quantized_min);
-    else return -std::numeric_limits<tune_t>::infinity();
-}
-template <class T> constexpr tune_t quantized_hi()
-{
-    if constexpr (requires { T::quantized_max; }) return static_cast<tune_t>(T::quantized_max);
-    else return std::numeric_limits<tune_t>::infinity();
+    return requires { T::get_parameter_bounds(); };
 }
 
 void Tuner::run(const std::vector<DataSource>& sources)
@@ -987,6 +976,17 @@ void Tuner::run(const std::vector<DataSource>& sources)
     if (parameters.size() > std::numeric_limits<int16_t>::max())
     {
         throw runtime_error("Parameter count exceeds int16_t limit for CoefficientEntry::index");
+    }
+
+    constexpr bool has_bounds = has_parameter_bounds<TuneEval>();
+    bounds_t bounds;
+    if constexpr (has_bounds)
+    {
+        bounds = TuneEval::get_parameter_bounds();
+        if (bounds.size() != parameters.size())
+        {
+            throw runtime_error("Parameter bounds count does not match parameter count");
+        }
     }
 
     cout << "Initial parameters:" << endl;
@@ -1031,6 +1031,20 @@ void Tuner::run(const std::vector<DataSource>& sources)
 #else
             parameters[pi] = static_cast<tune_t>(0);
 #endif
+        }
+    }
+
+    // Project the starting point into the bounds so epoch 1 begins feasible
+    // (matters once any term has a floor > 0 or a ceiling < 0).
+    if constexpr (has_bounds)
+    {
+        for (size_t pi = 0; pi < parameters.size(); pi++)
+        {
+            for (int phase_stage = 0; phase_stage < 2; phase_stage++)
+            {
+                parameters[pi][phase_stage] = std::clamp(
+                    parameters[pi][phase_stage], bounds[pi].lower[phase_stage], bounds[pi].upper[phase_stage]);
+            }
         }
     }
 
@@ -1111,13 +1125,15 @@ void Tuner::run(const std::vector<DataSource>& sources)
                 const tune_t corrected_velocity = velocity[parameter_index][phase_stage] / bias_correction2;
                 parameters[parameter_index][phase_stage] -= learning_rate * corrected_momentum / (static_cast<tune_t>(1e-8) + sqrt(corrected_velocity));
 
-                // Projected gradient descent: keep int8-stored terms within the
-                // engine's representable range so the other parameters tune
-                // around the clamped value instead of an unstorable optimum.
-                if (parameter_index >= quantized_start<TuneEval>())
+                // Projected gradient descent: clamp each parameter back into its
+                // per-term, per-phase bounds so the other parameters tune around
+                // any floors/ceilings instead of an unrepresentable optimum.
+                if constexpr (has_bounds)
                 {
                     parameters[parameter_index][phase_stage] = std::clamp(
-                        parameters[parameter_index][phase_stage], quantized_lo<TuneEval>(), quantized_hi<TuneEval>());
+                        parameters[parameter_index][phase_stage],
+                        bounds[parameter_index].lower[phase_stage],
+                        bounds[parameter_index].upper[phase_stage]);
                 }
             }
 #else

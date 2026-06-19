@@ -28,17 +28,14 @@ namespace Fourkdotcpp
         constexpr static bool print_data_entries = false;
         constexpr static int32_t data_load_print_interval = 10000;
 
-        // Quantization-aware clamping. Parameters at or after this index are
-        // stored as int8 in the engine, so the tuner projects them back into
-        // [quantized_min, quantized_max] after every gradient step (projected
-        // gradient descent), letting the other terms tune around the clamped,
-        // representable value. Parameters [0, start) are the int16 material and
-        // are left free.
-        constexpr static int32_t quantized_parameter_start = 6;
-        constexpr static tune_t quantized_min = -128;
-        constexpr static tune_t quantized_max = 127;
-
         static parameters_t get_initial_parameters();
+
+        // Per-parameter, per-phase tuning bounds (projected gradient descent).
+        // Defaults every term to the int8 range [-128, 127]; material is left
+        // free (int16 in the engine) and constrained terms (e.g. passed pawns
+        // floored at 0) override their range. See get_parameter_bounds().
+        static bounds_t get_parameter_bounds();
+
         static EvalResult get_fen_eval_result(const std::string& fen);
         static EvalResult get_external_eval_result(const chess::Board& board);
         static void print_parameters(const parameters_t& parameters);

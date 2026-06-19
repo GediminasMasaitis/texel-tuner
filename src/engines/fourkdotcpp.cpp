@@ -643,6 +643,34 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     return parameters;
 }
 
+// Per-parameter tuning bounds, enumerated in the SAME order and counts as
+// get_initial_parameters() above. Every term defaults to the engine's int8
+// storage range [-128, 127]; only the exceptions below differ:
+//   - material: int16 in the engine, so left free.
+//   - passed_pawns: floored at 0 (a passed pawn is never a penalty).
+// To constrain another term, override its line with (mg_lo, mg_hi, eg_lo, eg_hi).
+bounds_t FourkdotcppEval::get_parameter_bounds()
+{
+    bounds_t bounds;
+    add_bound_array (bounds, 6, -bound_inf, bound_inf, -bound_inf, bound_inf); // material (int16, free)
+    add_bound_array (bounds, 48); // pst_rank
+    add_bound_array (bounds, 48); // pst_file
+    add_bound_array (bounds, 5);  // mobilities
+    add_bound_array (bounds, 5);  // king_attacks
+    add_bound_array (bounds, 5);  // pawn_threat
+    add_bound_array (bounds, 12); // open_files
+    add_bound_array (bounds, 6);  // passed_pawns
+    add_bound_array (bounds, 6);  // passed_blocked_pawns
+    add_bound_single(bounds);     // protected_pawn
+    add_bound_single(bounds);     // phalanx_pawn
+    add_bound_single(bounds);     // bishop_pair
+    add_bound_array (bounds, 2);  // bishop_pawns
+    add_bound_array (bounds, 2);  // king_shield
+    add_bound_array (bounds, 2);  // pawn_attacked_penalty
+    add_bound_single(bounds);     // tempo
+    return bounds;
+}
+
 static coefficients_t get_coefficients(const Trace& trace)
 {
     coefficients_t coefficients;

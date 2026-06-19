@@ -3,6 +3,7 @@
 
 #include <array>
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 //#define TAPERED 1
@@ -17,6 +18,40 @@ using parameters_t = std::vector<tune_t>;
 #endif
 
 using coefficients_t = std::vector<int16_t>;
+
+#if TAPERED
+// Per-parameter, per-phase tuning bounds. After each gradient step the tuner
+// projects every parameter back into [lower, upper] (separately for mg/eg), so
+// the unconstrained terms tune around any floors/ceilings (projected gradient
+// descent) rather than converging to an unrepresentable joint optimum.
+inline constexpr tune_t bound_inf = std::numeric_limits<tune_t>::infinity();
+
+struct Bound
+{
+    pair_t lower;
+    pair_t upper;
+};
+using bounds_t = std::vector<Bound>;
+
+// Push one parameter's bounds. Defaults to the int8 range used by most terms.
+inline void add_bound_single(bounds_t& bounds,
+    const tune_t mg_lo = -128, const tune_t mg_hi = 127,
+    const tune_t eg_lo = -128, const tune_t eg_hi = 127)
+{
+    bounds.push_back(Bound{ pair_t{ mg_lo, eg_lo }, pair_t{ mg_hi, eg_hi } });
+}
+
+// Push the same bounds for every element of an array term (broadcast).
+inline void add_bound_array(bounds_t& bounds, const int count,
+    const tune_t mg_lo = -128, const tune_t mg_hi = 127,
+    const tune_t eg_lo = -128, const tune_t eg_hi = 127)
+{
+    for (int i = 0; i < count; i++)
+    {
+        add_bound_single(bounds, mg_lo, mg_hi, eg_lo, eg_hi);
+    }
+}
+#endif
 
 struct EvalResult
 {
