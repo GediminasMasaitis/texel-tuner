@@ -22,6 +22,9 @@ For a new engine it's required to create a new header file with an evaluation cl
         static EvalResult get_fen_eval_result(const std::string& fen);
         static EvalResult get_external_eval_result(const Chess::Board& board);
         static void print_parameters(const parameters_t& parameters);
+
+        // Optional: constrain parameters to ranges during tuning.
+        static bounds_t get_parameter_bounds();
     };
 ```
 Edit `config.h` to point `TuneEval` to your evaluation class. Edit `thread_count`` to be equivalent to what you're comfortable with. 
@@ -69,6 +72,11 @@ Reduces the learning rate every N epochs.
 ### learning_rate_drop_ratio
 By how much to drop the learning ration every [learning_rate_drop_interval](#learning_rate_drop_interval) epochs. A value of `0.5` will cut the learning rate in half, after N epochs have passed. A value of 1 disables LR drops.
 
+### reset_momentum_on_clamp / reset_velocity_on_clamp
+These only take effect when [get_parameter_bounds](#get_parameter_bounds) is defined. When a parameter update would leave its allowed range, the tuner clamps it back into range (projected gradient descent). On a clamped step the Adam optimizer's moment estimates still hold the full, pre-clamp step, so they can "wind up" against the boundary and lag once the gradient later points back into the range.
+
+Setting `reset_momentum_on_clamp` to `true` zeroes the first moment (momentum) for a parameter on any step where it was clamped; `reset_velocity_on_clamp` does the same for the second moment (velocity). Both default to `false`, which is plain projected gradient descent and is fine for most cases. Enabling the momentum reset is the usual choice if a parameter sits hard against a bound and you want it to react immediately when the gradient reverses.
+
 ## Evaluation class functions
 
 ### get_initial_parameters
@@ -90,6 +98,32 @@ Similar to [get_fen_eval_result](get_fen_eval_result), but instead of a FEN it g
 
 ### print_parameters
 This function prints the results of the tuning, the input is given as a vector of the tuned parameters, and it's up to the engine to ptint it as as it desires.
+
+### get_parameter_bounds
+Optional. Returns a `bounds_t` giving a `[lower, upper]` range for every parameter — and, for tapered evaluations, separately for the midgame and endgame value. The entries are enumerated in the same order and counts as [get_initial_parameters](#get_initial_parameters).
+
+After every gradient step the tuner projects each parameter back into its range (projected gradient descent). Because the clamp is applied inside the optimization loop rather than only to the printed output, the unconstrained terms tune *around* any floors or ceilings, instead of converging to a joint optimum that can't be represented or that violates a known constraint (for example, keeping a bonus term non-negative or a penalty term non-positive).
+
+Build the bounds with the `add_bound_single` and `add_bound_array` helpers declared in `base.h`. The typical pattern is to default every term to your engine's storage range and override only the few that need a tighter floor or ceiling:
+
+```cpp
+bounds_t YourEval::get_parameter_bounds()
+{
+    bounds_t bounds;
+    add_bound_array(bounds, material_count, -bound_inf, bound_inf, -bound_inf, bound_inf); // unconstrained
+    add_bound_array(bounds, some_count);                  // default range [-128, 127]
+    add_bound_array(bounds, bonus_count, 0, 127, 0, 127); // floored at 0
+    add_bound_single(bounds, -128, 0, -128, 0);           // capped at 0
+    // ... one call per term, matching get_initial_parameters ...
+    return bounds;
+}
+```
+
+`add_bound_single(bounds, mg_lo, mg_hi, eg_lo, eg_hi)` adds one parameter's range; `add_bound_array(bounds, count, mg_lo, mg_hi, eg_lo, eg_hi)` broadcasts the same range across `count` consecutive parameters (use one `add_bound_single` per element when the elements of an array need different ranges). The range arguments default to `[-128, 127]` when omitted, and `bound_inf` denotes an open (unconstrained) side. The returned vector must contain exactly one entry per parameter; a mismatch with [get_initial_parameters](#get_initial_parameters) is reported at startup.
+
+The behaviour of the optimizer's Adam state on a clamped step is controlled by [reset_momentum_on_clamp / reset_velocity_on_clamp](#reset_momentum_on_clamp--reset_velocity_on_clamp).
+
+If the evaluation class does not define `get_parameter_bounds`, parameters are left completely unclamped.
 
 ## config.h
 
