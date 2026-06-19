@@ -25,6 +25,13 @@ namespace Fourkdotcpp
         constexpr static int32_t learning_rate_drop_interval = 10000;
         constexpr static tune_t learning_rate_drop_ratio = 1;
         constexpr static bool adam_bias_correction = false;
+
+        // On a clamp (an active parameter bound), optionally discard the Adam
+        // moment state for that coordinate so it does not "wind up" against the
+        // boundary. Both false = plain projected gradient descent.
+        constexpr static bool reset_momentum_on_clamp = false;
+        constexpr static bool reset_velocity_on_clamp = false;
+
         constexpr static bool print_data_entries = false;
         constexpr static int32_t data_load_print_interval = 10000;
 

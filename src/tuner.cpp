@@ -1130,10 +1130,28 @@ void Tuner::run(const std::vector<DataSource>& sources)
                 // any floors/ceilings instead of an unrepresentable optimum.
                 if constexpr (has_bounds)
                 {
-                    parameters[parameter_index][phase_stage] = std::clamp(
-                        parameters[parameter_index][phase_stage],
+                    const tune_t unclamped = parameters[parameter_index][phase_stage];
+                    const tune_t clamped = std::clamp(
+                        unclamped,
                         bounds[parameter_index].lower[phase_stage],
                         bounds[parameter_index].upper[phase_stage]);
+                    parameters[parameter_index][phase_stage] = clamped;
+
+                    // When the clamp truncates the step (an active bound), the Adam
+                    // moments still carry the full, infeasible step and wind up
+                    // against the boundary. Optionally discard that windup so the
+                    // parameter can track gradient reversals without lag.
+                    if (clamped != unclamped)
+                    {
+                        if constexpr (TuneEval::reset_momentum_on_clamp)
+                        {
+                            momentum[parameter_index][phase_stage] = 0;
+                        }
+                        if constexpr (TuneEval::reset_velocity_on_clamp)
+                        {
+                            velocity[parameter_index][phase_stage] = 0;
+                        }
+                    }
                 }
             }
 #else
