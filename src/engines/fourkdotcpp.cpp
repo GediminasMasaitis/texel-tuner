@@ -241,6 +241,12 @@ struct Trace
     int pawn_threat[5][2]{};
     int pawn_attacked_penalty[2][2]{};
     int tempo[2]{};
+
+    // King safety is tuned via the framework's safety path, not the linear
+    // coefficients: per-colour attack-unit counts (pawn/knight/bishop/rook/queen
+    // on the enemy king ring) and the fixed no-queen baseline.
+    int safety[2][5]{};
+    int safety_offset[2]{};
 };
 
 const i32 phases[] = { 0, 0, 1, 1, 2, 4, 0 };
@@ -263,7 +269,7 @@ const i32 pst_file[] = {
 };
 const i32 open_files[12] = { 0 };
 const i32 mobilities[] = { 0,0,0,0,0 };
-const i32 king_attacks[] = { 0,0,0,0,0 };
+const i32 king_attacks[] = { S(5, 2), S(15, 6), S(15, 6), S(18, 8), S(28, 12) };
 const i32 protected_pawn = 0;
 const i32 phalanx_pawn = 0;
 const i32 passed_pawns[] = { 0,0,0,0,0,0 };
@@ -298,6 +304,13 @@ static Trace eval(Position& pos) {
         u64 no_passers = pos.colour[1] & pos.pieces[Pawn];
         no_passers |= se(no_passers) | sw(no_passers);
         const u64 opp_king_zone = king(lsb(pos.colour[1] & pos.pieces[King]), 0);
+
+        // KING RING ATTACK: per-side packed accumulator with a fixed no-queen
+        // baseline, finalized quadratically after the piece loop (mirrors the
+        // engine). The per-piece counts also feed the tuner's safety path.
+        const int no_queen = count(pos.colour[0] & pos.pieces[Queen]) == 0;
+        trace.safety_offset[color] = -97 * no_queen;
+        int king_attack = S(-97, -97) * no_queen;
 
         if (count(pos.colour[0] & pos.pieces[Bishop]) == 2) {
             score += bishop_pair;
@@ -352,14 +365,24 @@ static Trace eval(Position& pos) {
                 }
 
                 const u64 mobility = get_mobility(sq, p /*== King ? Queen : p*/, &pos);
+
+                // KING RING ATTACK: accumulate per-piece attack-unit counts on the
+                // enemy king ring. Pawns use their attacks, knights/sliders use
+                // mobility, the king is excluded. king_attacks[0]=pawn .. [4]=queen.
+                if (p == Pawn) {
+                    const int ring = count((ne(piece_bb) | nw(piece_bb)) & opp_king_zone);
+                    trace.safety[color][0] += ring;
+                    king_attack += ring * king_attacks[0];
+                }
+                else if (p < King) {
+                    const int ring = count(mobility & opp_king_zone);
+                    trace.safety[color][p - 1] += ring;
+                    king_attack += ring * king_attacks[p - 1];
+                }
+
                 if (p > Pawn) {
                     score += mobilities[p - 2] * count(mobility & ~pos.colour[0] & ~attacked_by_pawns);
                     TraceAdd(mobilities[p - 2], count(mobility & ~pos.colour[0] & ~attacked_by_pawns));
-
-                    if (p != Knight && p != King && p != Pawn) {
-                        score += king_attacks[p - 2] * count(mobility & opp_king_zone);
-                        TraceAdd(king_attacks[p - 2], count(mobility & opp_king_zone));
-                    }
 
                     if (in_front & ~piece_bb & attacked_by_pawns) {
                         score += pawn_threat[p - 2];
@@ -399,6 +422,13 @@ static Trace eval(Position& pos) {
                 }
             }
         }
+
+        // KING RING ATTACK: finalize the packed accumulator per phase, matching
+        // the engine's max(S, 0)^2 / 160. The tuner reproduces this through the
+        // safety path (safety_divisor = 160) from the per-piece counts above.
+        const int ka_mg = (short)king_attack;
+        const int ka_eg = (king_attack + 0x8000) >> 16;
+        score += S(ka_mg > 0 ? ka_mg * ka_mg / 160 : 0, ka_eg > 0 ? ka_eg * ka_eg / 160 : 0);
 
         flip(pos);
 
@@ -656,7 +686,7 @@ bounds_t FourkdotcppEval::get_parameter_bounds()
     add_bound_array (bounds, 48); // pst_rank
     add_bound_array (bounds, 48); // pst_file
     add_bound_array (bounds, 5);  // mobilities
-    add_bound_array (bounds, 5);  // king_attacks
+    add_bound_array (bounds, 5, 0, 127, 0, 127);  // king_attacks (safety weights, never negative)
     add_bound_array (bounds, 5);  // pawn_threat
     add_bound_array (bounds, 12); // open_files
     add_bound_array (bounds, 6);  // passed_pawns
@@ -795,6 +825,17 @@ static Position get_position_from_external(const chess::Board& board)
     return position;
 }
 
+static void set_result_safety(EvalResult& result, const Trace& trace)
+{
+    // White is colour 0, black is colour 1 (matching the trace's color index).
+    result.safety_white.assign(trace.safety[0], trace.safety[0] + 5);
+    result.safety_black.assign(trace.safety[1], trace.safety[1] + 5);
+    result.safety_offset_white = trace.safety_offset[0];
+    result.safety_offset_black = trace.safety_offset[1];
+    result.safety_offset_white_eg = trace.safety_offset[0];
+    result.safety_offset_black_eg = trace.safety_offset[1];
+}
+
 EvalResult FourkdotcppEval::get_fen_eval_result(const string& fen)
 {
     Position position;
@@ -804,6 +845,7 @@ EvalResult FourkdotcppEval::get_fen_eval_result(const string& fen)
     result.coefficients = get_coefficients(trace);
     result.score = trace.score;
     result.endgame_scale = trace.endgame_scale;
+    set_result_safety(result, trace);
     return result;
 }
 
@@ -815,6 +857,7 @@ EvalResult FourkdotcppEval::get_external_eval_result(const chess::Board& board)
     result.coefficients = get_coefficients(trace);
     result.score = trace.score;
     result.endgame_scale = trace.endgame_scale;
+    set_result_safety(result, trace);
 
     return result;
 }

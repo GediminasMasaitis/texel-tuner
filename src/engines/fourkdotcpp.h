@@ -35,6 +35,15 @@ namespace Fourkdotcpp
         constexpr static bool print_data_entries = false;
         constexpr static int32_t data_load_print_interval = 10000;
 
+        // King safety. The 5 king_attacks parameters (which start at index 107 in
+        // get_initial_parameters: 6 material + 48 pst_rank + 48 pst_file + 5
+        // mobilities) are summed per side into S = baseline + sum(count * weight),
+        // then finalized as max(S, 0)^2 / safety_divisor. The no-queen baseline is
+        // supplied per position via EvalResult::safety_offset_*.
+        constexpr static int32_t safety_parameter_start = 107;
+        constexpr static int32_t safety_parameter_count = 5;
+        constexpr static tune_t safety_divisor = 160;
+
         static parameters_t get_initial_parameters();
 
         // Per-parameter, per-phase tuning bounds (projected gradient descent).
