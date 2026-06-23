@@ -229,7 +229,7 @@ struct Trace
     int pst_rank[48][2]{};
     int pst_file[48][2]{};
     int mobilities[5][2]{};
-    int king_attacks[5][2]{};
+    int king_attacks[6][2]{};
     int open_files[12][2]{};
     int protected_pawn[2]{};
     int phalanx_pawn[2]{};
@@ -243,10 +243,10 @@ struct Trace
     int tempo[2]{};
 
     // King safety is tuned via the framework's safety path, not the linear
-    // coefficients: per-colour attack-unit counts (pawn/knight/bishop/rook/queen
-    // on the enemy king ring) and the fixed no-queen baseline.
-    int safety[2][5]{};
-    int safety_offset[2]{};
+    // coefficients. Per-colour counts: features [0..4] = pawn/knight/bishop/rook/
+    // queen on the enemy king ring; feature [5] = the "has no queen" flag, whose
+    // weight (king_attacks[5]) is the now-tunable baseline.
+    int safety[2][6]{};
 };
 
 const i32 phases[] = { 0, 0, 1, 1, 2, 4, 0 };
@@ -269,7 +269,7 @@ const i32 pst_file[] = {
 };
 const i32 open_files[12] = { 0 };
 const i32 mobilities[] = { 0,0,0,0,0 };
-const i32 king_attacks[] = { S(5, 2), S(15, 6), S(15, 6), S(18, 8), S(28, 12) };
+const i32 king_attacks[] = { S(5, 2), S(15, 6), S(15, 6), S(18, 8), S(28, 12), S(-97, -97) };
 const i32 protected_pawn = 0;
 const i32 phalanx_pawn = 0;
 const i32 passed_pawns[] = { 0,0,0,0,0,0 };
@@ -305,12 +305,13 @@ static Trace eval(Position& pos) {
         no_passers |= se(no_passers) | sw(no_passers);
         const u64 opp_king_zone = king(lsb(pos.colour[1] & pos.pieces[King]), 0);
 
-        // KING RING ATTACK: per-side packed accumulator with a fixed no-queen
-        // baseline, finalized quadratically after the piece loop (mirrors the
-        // engine). The per-piece counts also feed the tuner's safety path.
+        // KING RING ATTACK: per-side packed accumulator, finalized quadratically
+        // after the piece loop (mirrors the engine). The per-piece counts feed
+        // the tuner's safety path; the "has no queen" flag is feature [5], whose
+        // weight (king_attacks[5]) is the now-tunable baseline.
         const int no_queen = count(pos.colour[0] & pos.pieces[Queen]) == 0;
-        trace.safety_offset[color] = -97 * no_queen;
-        int king_attack = S(-97, -97) * no_queen;
+        trace.safety[color][5] = no_queen;
+        int king_attack = king_attacks[5] * no_queen;
 
         if (count(pos.colour[0] & pos.pieces[Bishop]) == 2) {
             score += bishop_pair;
@@ -657,7 +658,7 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_array(parameters, pst_rank, 48);
     get_initial_parameter_array(parameters, pst_file, 48);
     get_initial_parameter_array(parameters, mobilities, 5);
-    get_initial_parameter_array(parameters, king_attacks, 5);
+    get_initial_parameter_array(parameters, king_attacks, 6);
     get_initial_parameter_array(parameters, pawn_threat, 5);
     get_initial_parameter_array(parameters, open_files, 12);
     get_initial_parameter_array(parameters, passed_pawns, 6);
@@ -686,7 +687,8 @@ bounds_t FourkdotcppEval::get_parameter_bounds()
     add_bound_array (bounds, 48); // pst_rank
     add_bound_array (bounds, 48); // pst_file
     add_bound_array (bounds, 5);  // mobilities
-    add_bound_array (bounds, 5, 0, 127, 0, 127);  // king_attacks (safety weights, never negative)
+    add_bound_array (bounds, 5, 0, 127, 0, 127);  // king_attacks weights (never negative)
+    add_bound_single(bounds, -128, 0, -128, 0);   // king_attacks no-queen baseline (never positive)
     add_bound_array (bounds, 5);  // pawn_threat
     add_bound_array (bounds, 12); // open_files
     add_bound_array (bounds, 6);  // passed_pawns
@@ -708,7 +710,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.pst_rank, 48);
     get_coefficient_array(coefficients, trace.pst_file, 48);
     get_coefficient_array(coefficients, trace.mobilities, 5);
-    get_coefficient_array(coefficients, trace.king_attacks, 5);
+    get_coefficient_array(coefficients, trace.king_attacks, 6);
     get_coefficient_array(coefficients, trace.pawn_threat, 5);
     get_coefficient_array(coefficients, trace.open_files, 12);
     get_coefficient_array(coefficients, trace.passed_pawns, 6);
@@ -747,7 +749,7 @@ static void print_parameters_tapered(const parameters_t& parameters)
         print_pst_tapered(ss, parameters, index, phase, "pst_rank");
         print_pst_tapered(ss, parameters, index, phase, "pst_file");
         print_array_tapered(ss, parameters, index, phase, "mobilities", 5);
-        print_array_tapered(ss, parameters, index, phase, "king_attacks", 5);
+        print_array_tapered(ss, parameters, index, phase, "king_attacks", 6);
         print_array_tapered(ss, parameters, index, phase, "pawn_threat", 5);
         print_array_tapered(ss, parameters, index, phase, "open_files", 12);
         print_array_tapered(ss, parameters, index, phase, "passed_pawns", 6);
@@ -780,7 +782,7 @@ void FourkdotcppEval::print_parameters(const parameters_t& parameters)
     print_pst(ss, parameters_copy, index, "pst_rank");
     print_pst(ss, parameters_copy, index, "pst_file");
     print_array(ss, parameters_copy, index, "mobilities", 5);
-    print_array(ss, parameters_copy, index, "king_attacks", 5);
+    print_array(ss, parameters_copy, index, "king_attacks", 6);
     print_array(ss, parameters_copy, index, "open_files", 6);
     print_single(ss, parameters_copy, index, "bishop_pair");
     cout << ss.str() << "\n";
@@ -828,12 +830,8 @@ static Position get_position_from_external(const chess::Board& board)
 static void set_result_safety(EvalResult& result, const Trace& trace)
 {
     // White is colour 0, black is colour 1 (matching the trace's color index).
-    result.safety_white.assign(trace.safety[0], trace.safety[0] + 5);
-    result.safety_black.assign(trace.safety[1], trace.safety[1] + 5);
-    result.safety_offset_white = trace.safety_offset[0];
-    result.safety_offset_black = trace.safety_offset[1];
-    result.safety_offset_white_eg = trace.safety_offset[0];
-    result.safety_offset_black_eg = trace.safety_offset[1];
+    result.safety_white.assign(trace.safety[0], trace.safety[0] + 6);
+    result.safety_black.assign(trace.safety[1], trace.safety[1] + 6);
 }
 
 EvalResult FourkdotcppEval::get_fen_eval_result(const string& fen)

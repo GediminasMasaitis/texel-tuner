@@ -41,7 +41,7 @@ namespace Fourkdotcpp
         // then finalized as max(S, 0)^2 / safety_divisor. The no-queen baseline is
         // supplied per position via EvalResult::safety_offset_*.
         constexpr static int32_t safety_parameter_start = 107;
-        constexpr static int32_t safety_parameter_count = 5;
+        constexpr static int32_t safety_parameter_count = 6;
         constexpr static tune_t safety_divisor = 160;
 
         static parameters_t get_initial_parameters();
