@@ -235,6 +235,7 @@ struct Trace
     int phalanx_pawn[2]{};
     int passed_pawns[6][2]{};
     int passed_blocked_pawns[6][2]{};
+    int passed_king_distance[2][2]{};
     int bishop_pair[2]{};
     int king_shield[2][2]{};
     int bishop_pawns[2][2]{};
@@ -268,6 +269,7 @@ const i32 protected_pawn = 0;
 const i32 phalanx_pawn = 0;
 const i32 passed_pawns[] = { 0,0,0,0,0,0 };
 const i32 passed_blocked_pawns[] = { 0,0,0,0,0,0 };
+const i32 passed_king_distance[] = { 0,0 };
 const i32 bishop_pair = 0;
 const i32 king_shield[2] = { 0 };
 const i32 bishop_pawns[2] = { 0 };
@@ -348,6 +350,16 @@ static Trace eval(Position& pos) {
                     if (north(1ULL << sq) & pos.colour[1]) {
                         score += passed_blocked_pawns[rank - 1];
                         TraceIncr(passed_blocked_pawns[rank - 1]);
+                    }
+
+                    // King distance to the square in front of the passer
+                    for (int i = 0; i < 2; ++i) {
+                        const int king_sq = lsb(pos.colour[i] & pos.pieces[King]);
+                        const int rd = abs(king_sq / 8 - rank - 1);
+                        const int fd = abs(king_sq % 8 - file);
+                        const int d = (rank - 1) * max(rd, fd);
+                        score += passed_king_distance[i] * d;
+                        TraceAdd(passed_king_distance[i], d);
                     }
                 }
 
@@ -632,6 +644,7 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_array(parameters, open_files, 12);
     get_initial_parameter_array(parameters, passed_pawns, 6);
     get_initial_parameter_array(parameters, passed_blocked_pawns, 6);
+    get_initial_parameter_array(parameters, passed_king_distance, 2);
     get_initial_parameter_single(parameters, protected_pawn);
     get_initial_parameter_single(parameters, phalanx_pawn);
     get_initial_parameter_single(parameters, bishop_pair);
@@ -661,6 +674,7 @@ bounds_t FourkdotcppEval::get_parameter_bounds()
     add_bound_array (bounds, 12); // open_files
     add_bound_array (bounds, 6);  // passed_pawns
     add_bound_array (bounds, 6);  // passed_blocked_pawns
+    add_bound_array (bounds, 2);  // passed_king_distance
     add_bound_single(bounds);     // protected_pawn
     add_bound_single(bounds);     // phalanx_pawn
     add_bound_single(bounds);     // bishop_pair
@@ -683,6 +697,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.open_files, 12);
     get_coefficient_array(coefficients, trace.passed_pawns, 6);
     get_coefficient_array(coefficients, trace.passed_blocked_pawns, 6);
+    get_coefficient_array(coefficients, trace.passed_king_distance, 2);
     get_coefficient_single(coefficients, trace.protected_pawn);
     get_coefficient_single(coefficients, trace.phalanx_pawn);
     get_coefficient_single(coefficients, trace.bishop_pair);
@@ -722,6 +737,7 @@ static void print_parameters_tapered(const parameters_t& parameters)
         print_array_tapered(ss, parameters, index, phase, "open_files", 12);
         print_array_tapered(ss, parameters, index, phase, "passed_pawns", 6);
         print_array_tapered(ss, parameters, index, phase, "passed_blocked_pawns", 6);
+        print_array_tapered(ss, parameters, index, phase, "passed_king_distance", 2);
         print_single_tapered(ss, parameters, index, phase, "protected_pawn");
         print_single_tapered(ss, parameters, index, phase, "phalanx_pawn");
         print_single_tapered(ss, parameters, index, phase, "bishop_pair");
