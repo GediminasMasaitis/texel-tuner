@@ -240,7 +240,7 @@ struct Trace
     int king_shield[2][2]{};
     int bishop_pawns[2][2]{};
     int pawn_threat[5][2]{};
-    int threats[10][2][2]{};
+    int threats[2][10][2]{};
     int tempo[2]{};
 };
 
@@ -274,17 +274,17 @@ const i32 bishop_pair = 0;
 const i32 king_shield[2] = { 0 };
 const i32 bishop_pawns[2] = { 0 };
 const i32 pawn_threat[5] = { 0 };
-// Threats: [attacker-victim pair][side-to-move]. Pairs are the upper triangle
-// of attacker x victim where the victim is strictly higher value
-// (P < N < B < R < Q, bishop > knight), king excluded as victim:
+// Threats: [side-to-move][attacker-victim pair]. Row 0 = attacker is the side
+// to move, row 1 = attacker is the waiting side. The 10 pairs (each row) are
+// the upper triangle of attacker x victim where the victim is strictly higher
+// value (P < N < B < R < Q, bishop > knight), king excluded as victim:
 //   P>N P>B P>R P>Q  N>B N>R N>Q  B>R B>Q  R>Q
-// [.][0] = attacker is the side to move, [.][1] = waiting side.
-// Seed values are placeholders; retune_from_zero resets them before tuning.
-const i32 threats[10][2] = {
-    {0, 0}, {0, 0}, {0, 0}, {0, 0},
-    {0, 0}, {0, 0}, {0, 0},
-    {0, 0}, {0, 0},
-    {0, 0},
+// Counted 2x in eval so tuned values land at half magnitude (headroom before
+// the int8 clamp); the engine MUST apply the same 2x. retune_from_zero resets
+// these seeds before tuning.
+const i32 threats[2][10] = {
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // attacker to move
+    {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // attacker waiting
 };
 const i32 tempo = S(16, 8);
 
@@ -389,8 +389,8 @@ static Trace eval(Position& pos) {
                         // [-128, 127] clamp. The engine MUST apply this term with
                         // the same 2x multiplier to keep the eval equivalent.
                         const int n = 2 * count(attacks & pos.colour[1] & pos.pieces[pv]);
-                        score += threats[ti][c] * n;
-                        TraceAdd(threats[ti][c], n);
+                        score += threats[c][ti] * n;
+                        TraceAdd(threats[c][ti], n);
                     }
                 }
 
@@ -673,7 +673,7 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_single(parameters, bishop_pair);
     get_initial_parameter_array(parameters, bishop_pawns, 2);
     get_initial_parameter_array(parameters, king_shield, 2);
-    get_initial_parameter_array_2d(parameters, threats, 10, 2);
+    get_initial_parameter_array_2d(parameters, threats, 2, 10);
     get_initial_parameter_single(parameters, tempo);
 
     return parameters;
@@ -703,7 +703,7 @@ bounds_t FourkdotcppEval::get_parameter_bounds()
     add_bound_single(bounds);     // bishop_pair
     add_bound_array (bounds, 2);  // bishop_pawns
     add_bound_array (bounds, 2);  // king_shield
-    add_bound_array (bounds, 2);  // pawn_attacked_penalty
+    add_bound_array (bounds, 20); // threats
     add_bound_single(bounds);     // tempo
     return bounds;
 }
@@ -726,7 +726,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_single(coefficients, trace.bishop_pair);
     get_coefficient_array(coefficients, trace.bishop_pawns, 2);
     get_coefficient_array(coefficients, trace.king_shield, 2);
-    get_coefficient_array_2d(coefficients, trace.threats, 10, 2);
+    get_coefficient_array_2d(coefficients, trace.threats, 2, 10);
     get_coefficient_single(coefficients, trace.tempo);
     return coefficients;
 }
