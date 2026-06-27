@@ -240,7 +240,7 @@ struct Trace
     int king_shield[2][2]{};
     int bishop_pawns[2][2]{};
     int pawn_threat[5][2]{};
-    int pawn_attacked_penalty[2][2]{};
+    int threats[10][2][2]{};
     int tempo[2]{};
 };
 
@@ -274,7 +274,18 @@ const i32 bishop_pair = 0;
 const i32 king_shield[2] = { 0 };
 const i32 bishop_pawns[2] = { 0 };
 const i32 pawn_threat[5] = { 0 };
-const i32 pawn_attacked_penalty[2] = { S(-17, -11), S(-128, -128) };
+// Threats: [attacker-victim pair][side-to-move]. Pairs are the upper triangle
+// of attacker x victim where the victim is strictly higher value
+// (P < N < B < R < Q, bishop > knight), king excluded as victim:
+//   P>N P>B P>R P>Q  N>B N>R N>Q  B>R B>Q  R>Q
+// [.][0] = attacker is the side to move, [.][1] = waiting side.
+// Seed values are placeholders; retune_from_zero resets them before tuning.
+const i32 threats[10][2] = {
+    {0, 0}, {0, 0}, {0, 0}, {0, 0},
+    {0, 0}, {0, 0}, {0, 0},
+    {0, 0}, {0, 0},
+    {0, 0},
+};
 const i32 tempo = S(16, 8);
 
 #define TraceIncr(parameter) trace.parameter[color]++
@@ -364,6 +375,25 @@ static Trace eval(Position& pos) {
                 }
 
                 const u64 mobility = get_mobility(sq, p /*== King ? Queen : p*/, &pos);
+
+                // Threats: bonus for a piece attacking a higher-valued enemy
+                // piece (victim strictly higher value, king excluded). Indexed
+                // by [pair][c]; c keeps the side-to-move asymmetry (c == 0 means
+                // the attacker is to move, so the threat is more likely won).
+                {
+                    const u64 attacks = p == Pawn ? (ne(piece_bb) | nw(piece_bb)) : mobility;
+                    int ti = (p - 1) * (10 - p) / 2;
+                    for (int pv = p + 1; pv <= Queen; pv++, ti++) {
+                        // Count the threat twice: the tuned value then lands at
+                        // half magnitude, doubling the headroom before the int8
+                        // [-128, 127] clamp. The engine MUST apply this term with
+                        // the same 2x multiplier to keep the eval equivalent.
+                        const int n = 2 * count(attacks & pos.colour[1] & pos.pieces[pv]);
+                        score += threats[ti][c] * n;
+                        TraceAdd(threats[ti][c], n);
+                    }
+                }
+
                 if (p > Pawn) {
                     score += mobilities[p - 2] * count(mobility & ~pos.colour[0] & ~attacked_by_pawns);
                     TraceAdd(mobilities[p - 2], count(mobility & ~pos.colour[0] & ~attacked_by_pawns));
@@ -376,13 +406,6 @@ static Trace eval(Position& pos) {
                     if (in_front & ~piece_bb & attacked_by_pawns) {
                         score += pawn_threat[p - 2];
                         TraceIncr(pawn_threat[p - 2]);
-                    }
-
-                    // Pieces attacked by enemy pawns. Penalty depends on the
-                    // side to move via [c]: [0] = side-to-move, [1] = waiting side.
-                    if (piece_bb & no_passers) {
-                        score += pawn_attacked_penalty[c];
-                        TraceIncr(pawn_attacked_penalty[c]);
                     }
 
                     // Pawns on bishop coloured squares
@@ -650,7 +673,7 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_single(parameters, bishop_pair);
     get_initial_parameter_array(parameters, bishop_pawns, 2);
     get_initial_parameter_array(parameters, king_shield, 2);
-    get_initial_parameter_array(parameters, pawn_attacked_penalty, 2);
+    get_initial_parameter_array_2d(parameters, threats, 10, 2);
     get_initial_parameter_single(parameters, tempo);
 
     return parameters;
@@ -703,7 +726,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_single(coefficients, trace.bishop_pair);
     get_coefficient_array(coefficients, trace.bishop_pawns, 2);
     get_coefficient_array(coefficients, trace.king_shield, 2);
-    get_coefficient_array(coefficients, trace.pawn_attacked_penalty, 2);
+    get_coefficient_array_2d(coefficients, trace.threats, 10, 2);
     get_coefficient_single(coefficients, trace.tempo);
     return coefficients;
 }
@@ -743,7 +766,7 @@ static void print_parameters_tapered(const parameters_t& parameters)
         print_single_tapered(ss, parameters, index, phase, "bishop_pair");
         print_array_tapered(ss, parameters, index, phase, "bishop_pawns", 2);
         print_array_tapered(ss, parameters, index, phase, "king_shield", 2);
-        print_array_tapered(ss, parameters, index, phase, "pawn_attacked_penalty", 2);
+        print_array_tapered(ss, parameters, index, phase, "threats", 20);
         print_single_tapered(ss, parameters, index, phase, "tempo");
     }
 
