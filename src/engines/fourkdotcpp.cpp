@@ -509,6 +509,32 @@ static void print_array_tapered(std::stringstream& ss, const parameters_t& param
     ss << "}," << endl;
 }
 
+static void print_array_tapered_2d(std::stringstream& ss, const parameters_t& parameters, int& index, const PhaseStages phase, const std::string& name, const int count1, const int count2)
+{
+    ss << "." << name << " = {";
+    for (auto i = 0; i < count1; i++)
+    {
+        ss << "{";
+        for (auto j = 0; j < count2; j++)
+        {
+            print_parameter_tapered(ss, phase, parameters[index]);
+            index++;
+
+            if (j != count2 - 1)
+            {
+                ss << ", ";
+            }
+        }
+        ss << "}";
+
+        if (i != count1 - 1)
+        {
+            ss << ", ";
+        }
+    }
+    ss << "}," << endl;
+}
+
 static void print_array(std::stringstream& ss, const parameters_t& parameters, int& index, const std::string& name, const int count)
 {
     ss << "__attribute__((aligned(8))) static const i8 " << name << "[] = {";

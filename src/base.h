@@ -51,6 +51,17 @@ inline void add_bound_array(bounds_t& bounds, const int count,
         add_bound_single(bounds, mg_lo, mg_hi, eg_lo, eg_hi);
     }
 }
+
+// Push the same bounds for every element of a 2d array term (broadcast).
+inline void add_bound_array_2d(bounds_t& bounds, const int count1, const int count2,
+    const tune_t mg_lo = -128, const tune_t mg_hi = 127,
+    const tune_t eg_lo = -128, const tune_t eg_hi = 127)
+{
+    for (int i = 0; i < count1; i++)
+    {
+        add_bound_array(bounds, count2, mg_lo, mg_hi, eg_lo, eg_hi);
+    }
+}
 #endif
 
 struct EvalResult
