@@ -418,6 +418,7 @@ static int32_t get_piece_value(const chess::Piece piece)
     case chess::Piece(chess::Piece::WHITEKING):
     case chess::Piece(chess::Piece::BLACKKING):
     case chess::Piece(chess::Piece::NONE):
+    default:
         return 0;
         //throw std::runtime_error("Invalid piece for value");
     }

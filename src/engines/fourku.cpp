@@ -14,6 +14,11 @@ using namespace Fourku;
 using u64 = uint64_t;
 using i32 = int;
 
+// Internal linkage: other engine translation units define their own
+// Position/Trace etc., which would otherwise violate the ODR under LTO.
+namespace
+{
+
 enum
 {
     Pawn,
@@ -602,6 +607,8 @@ static void rebalance_psts(parameters_t& parameters, const int32_t pst_offset, b
 #endif
     }
 }
+
+} // anonymous namespace
 
 parameters_t FourkuEval::get_initial_parameters()
 {

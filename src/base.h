@@ -112,7 +112,7 @@ void get_initial_parameter_single(parameters_t& parameters, const T& parameter)
 #if TAPERED
     const auto mg = mg_score(static_cast<int32_t>(parameter));
     const auto eg = eg_score(static_cast<int32_t>(parameter));
-    const pair_t pair = { mg, eg };
+    const pair_t pair = { static_cast<tune_t>(mg), static_cast<tune_t>(eg) };
     parameters.push_back(pair);
 #else
     parameters.push_back(static_cast<tune_t>(parameter));

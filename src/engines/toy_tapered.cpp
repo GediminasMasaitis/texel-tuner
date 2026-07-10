@@ -11,6 +11,11 @@
 using namespace std;
 using namespace Toy;
 
+// Internal linkage: other engine translation units define their own Trace,
+// which would otherwise violate the ODR under LTO.
+namespace
+{
+
 struct Trace
 {
     int32_t material[6][2]{};
@@ -71,6 +76,8 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_single(coefficients, trace.bishop_pair);
     return coefficients;
 }
+
+} // anonymous namespace
 
 parameters_t ToyEvalTapered::get_initial_parameters()
 {
