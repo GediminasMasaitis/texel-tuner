@@ -734,44 +734,56 @@ static coefficients_t get_coefficients(const Trace& trace)
     return coefficients;
 }
 
+// Prints one EvalParams designated initializer (.mg or .eg) for one phase.
+static void print_phase_block(std::stringstream& ss, const parameters_t& parameters, const PhaseStages phase, const std::string& name)
+{
+    int index = 0;
+
+    ss << "." << name << " = {";
+
+    // Material: print {0, Pawn..Queen}, skip King (always 0)
+    ss << ".material = {0, ";
+    for (auto j = 0; j < 5; j++)
+    {
+        print_parameter_tapered(ss, phase, parameters[index]);
+        index++;
+        if (j != 4) ss << ", ";
+    }
+    index++; // skip King
+    ss << "}," << endl;
+
+    print_pst_tapered(ss, parameters, index, phase, "pst_rank");
+    print_pst_tapered(ss, parameters, index, phase, "pst_file");
+    print_array_tapered(ss, parameters, index, phase, "mobilities", 5);
+    print_array_tapered(ss, parameters, index, phase, "king_attacks", 5);
+    print_array_tapered(ss, parameters, index, phase, "pawn_threat", 5);
+    print_array_tapered(ss, parameters, index, phase, "open_files", 12);
+    print_array_tapered(ss, parameters, index, phase, "passed_pawns", 6);
+    print_array_tapered(ss, parameters, index, phase, "passed_blocked_pawns", 6);
+    print_array_tapered(ss, parameters, index, phase, "passed_king_distance", 2);
+    print_single_tapered(ss, parameters, index, phase, "protected_pawn");
+    print_single_tapered(ss, parameters, index, phase, "phalanx_pawn");
+    print_single_tapered(ss, parameters, index, phase, "bishop_pair");
+    print_array_tapered(ss, parameters, index, phase, "bishop_pawns", 2);
+    print_array_tapered(ss, parameters, index, phase, "king_shield", 2);
+    print_array_tapered(ss, parameters, index, phase, "pawn_attacked_penalty", 2);
+    print_single_tapered(ss, parameters, index, phase, "tempo");
+
+    ss << "}";
+}
+
+// Prints the full EvalParamsInitial initializer in the same format as 4k.c,
+// so the whole block can be pasted over initial_params in one go.
 static void print_parameters_tapered(const parameters_t& parameters)
 {
     stringstream ss;
 
-    for (auto i = 0; i < 2; i++)
-    {
-        const auto phase = static_cast<PhaseStages>(i);
-        ss << (phase == PhaseStages::Midgame ? "MIDGAME:" : "ENDGAME:") << endl;
-        int index = 0;
-
-        // Material: print {0, Pawn..Queen}, skip King (always 0)
-        ss << ".material = {0, ";
-        for (auto j = 0; j < 5; j++)
-        {
-            print_parameter_tapered(ss, phase, parameters[index]);
-            index++;
-            if (j != 4) ss << ", ";
-        }
-        index++; // skip King
-        ss << "}," << endl;
-
-        print_pst_tapered(ss, parameters, index, phase, "pst_rank");
-        print_pst_tapered(ss, parameters, index, phase, "pst_file");
-        print_array_tapered(ss, parameters, index, phase, "mobilities", 5);
-        print_array_tapered(ss, parameters, index, phase, "king_attacks", 5);
-        print_array_tapered(ss, parameters, index, phase, "pawn_threat", 5);
-        print_array_tapered(ss, parameters, index, phase, "open_files", 12);
-        print_array_tapered(ss, parameters, index, phase, "passed_pawns", 6);
-        print_array_tapered(ss, parameters, index, phase, "passed_blocked_pawns", 6);
-        print_array_tapered(ss, parameters, index, phase, "passed_king_distance", 2);
-        print_single_tapered(ss, parameters, index, phase, "protected_pawn");
-        print_single_tapered(ss, parameters, index, phase, "phalanx_pawn");
-        print_single_tapered(ss, parameters, index, phase, "bishop_pair");
-        print_array_tapered(ss, parameters, index, phase, "bishop_pawns", 2);
-        print_array_tapered(ss, parameters, index, phase, "king_shield", 2);
-        print_array_tapered(ss, parameters, index, phase, "pawn_attacked_penalty", 2);
-        print_single_tapered(ss, parameters, index, phase, "tempo");
-    }
+    ss << "const EvalParamsInitial initial_params = {" << endl;
+    ss << ".phases = {0, 0, 1, 1, 2, 4}," << endl;
+    print_phase_block(ss, parameters, PhaseStages::Midgame, "mg");
+    ss << "," << endl;
+    print_phase_block(ss, parameters, PhaseStages::Endgame, "eg");
+    ss << "};" << endl;
 
     cout << ss.str() << "\n";
 }
