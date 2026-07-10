@@ -237,7 +237,7 @@ struct Trace
     int king_attacks[5][2]{};
     int open_files[12][2]{};
     int protected_pawn[2]{};
-    int phalanx_pawn[2]{};
+    int phalanx_pawn[6][2]{};
     int passed_pawns[6][2]{};
     int passed_blocked_pawns[6][2]{};
     int passed_king_distance[2][2]{};
@@ -271,7 +271,7 @@ const i32 open_files[12] = { 0 };
 const i32 mobilities[] = { 0,0,0,0,0 };
 const i32 king_attacks[] = { 0,0,0,0,0 };
 const i32 protected_pawn = 0;
-const i32 phalanx_pawn = 0;
+const i32 phalanx_pawn[] = { 0,0,0,0,0,0 };
 const i32 passed_pawns[] = { 0,0,0,0,0,0 };
 const i32 passed_blocked_pawns[] = { 0,0,0,0,0,0 };
 const i32 passed_king_distance[] = { 0,0 };
@@ -314,9 +314,6 @@ static Trace eval(Position& pos) {
         score -= protected_pawn * count(opp_pawns & attacked_by_pawns);
         TraceAdd(protected_pawn, -count(opp_pawns & attacked_by_pawns));
 
-        score -= phalanx_pawn * count(opp_pawns & west(opp_pawns));
-        TraceAdd(phalanx_pawn, -count(opp_pawns & west(opp_pawns)));
-
         // For each piece type
         for (int p = Pawn; p <= King; ++p) {
             auto copy = pos.colour[0] & pos.pieces[p];
@@ -346,6 +343,11 @@ static Trace eval(Position& pos) {
                 if ((north(in_front) & own_pawns) == 0) {
                     score += open_files[!(in_front & opp_pawns) * 6 + (p - 1)];
                     TraceIncr(open_files[!(in_front & opp_pawns) * 6 + (p - 1)]);
+                }
+
+                if (p == Pawn && (piece_bb & west(own_pawns))) {
+                    score += phalanx_pawn[rank - 1];
+                    TraceIncr(phalanx_pawn[rank - 1]);
                 }
 
                 if (p == Pawn && !(in_front & no_passers)) {
@@ -679,7 +681,7 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_array(parameters, passed_blocked_pawns, 6);
     get_initial_parameter_array(parameters, passed_king_distance, 2);
     get_initial_parameter_single(parameters, protected_pawn);
-    get_initial_parameter_single(parameters, phalanx_pawn);
+    get_initial_parameter_array(parameters, phalanx_pawn, 6);
     get_initial_parameter_single(parameters, bishop_pair);
     get_initial_parameter_array(parameters, bishop_pawns, 2);
     get_initial_parameter_array(parameters, king_shield, 2);
@@ -709,7 +711,7 @@ bounds_t FourkdotcppEval::get_parameter_bounds()
     add_bound_array (bounds, 6);  // passed_blocked_pawns
     add_bound_array (bounds, 2);  // passed_king_distance
     add_bound_single(bounds);     // protected_pawn
-    add_bound_single(bounds);     // phalanx_pawn
+    add_bound_array (bounds, 6);  // phalanx_pawn
     add_bound_single(bounds);     // bishop_pair
     add_bound_array (bounds, 2);  // bishop_pawns
     add_bound_array (bounds, 2);  // king_shield
@@ -732,7 +734,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.passed_blocked_pawns, 6);
     get_coefficient_array(coefficients, trace.passed_king_distance, 2);
     get_coefficient_single(coefficients, trace.protected_pawn);
-    get_coefficient_single(coefficients, trace.phalanx_pawn);
+    get_coefficient_array(coefficients, trace.phalanx_pawn, 6);
     get_coefficient_single(coefficients, trace.bishop_pair);
     get_coefficient_array(coefficients, trace.bishop_pawns, 2);
     get_coefficient_array(coefficients, trace.king_shield, 2);
@@ -769,7 +771,7 @@ static void print_phase_block(std::stringstream& ss, const parameters_t& paramet
     print_array_tapered(ss, parameters, index, phase, "passed_blocked_pawns", 6);
     print_array_tapered(ss, parameters, index, phase, "passed_king_distance", 2);
     print_single_tapered(ss, parameters, index, phase, "protected_pawn");
-    print_single_tapered(ss, parameters, index, phase, "phalanx_pawn");
+    print_array_tapered(ss, parameters, index, phase, "phalanx_pawn", 6);
     print_single_tapered(ss, parameters, index, phase, "bishop_pair");
     print_array_tapered(ss, parameters, index, phase, "bishop_pawns", 2);
     print_array_tapered(ss, parameters, index, phase, "king_shield", 2);
