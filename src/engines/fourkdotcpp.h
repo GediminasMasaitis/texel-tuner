@@ -18,7 +18,7 @@ namespace Fourkdotcpp
         constexpr static bool supports_external_chess_eval = true;
         constexpr static bool retune_from_zero = true;
         constexpr static tune_t preferred_k = 2.7;
-        constexpr static int32_t max_epoch = 20001;
+        constexpr static int32_t max_epoch = 5001;
         constexpr static bool enable_qsearch = false;
         constexpr static bool filter_in_check = false;
         constexpr static tune_t initial_learning_rate = 1;
@@ -35,6 +35,10 @@ namespace Fourkdotcpp
         // pawn-count interaction terms) by preferring the minimum-norm
         // solution. Remove or set to 0 to disable.
         constexpr static tune_t l2_lambda = 1e-4;
+
+        // Hold out every Nth position for a validation loss printed alongside
+        // the training loss (20 = 5%). Remove or set to 0 to train on all data.
+        constexpr static int32_t validation_stride = 20;
 
         // On a clamp (an active parameter bound), optionally discard the Adam
         // moment state for that coordinate so it does not "wind up" against the

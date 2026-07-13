@@ -58,8 +58,19 @@ template <class T> constexpr bool cross_entropy_v()
     if constexpr (requires { T::use_cross_entropy; }) return T::use_cross_entropy;
     else return false;
 }
+// Optional validation holdout: every Nth loaded position is excluded from
+// training and only used to report held-out loss at each print interval.
+// Detects overfitting (train loss falls while validation loss rises) and
+// dataset-artifact fits. 0 or 1 (default 0) disables.
+template <class T> constexpr int32_t validation_stride_v()
+{
+    if constexpr (requires { T::validation_stride; }) return T::validation_stride;
+    else return 0;
+}
+
 constexpr tune_t L2_LAMBDA = l2_lambda_v<TuneEval>();
 constexpr bool USE_CROSS_ENTROPY = cross_entropy_v<TuneEval>();
+constexpr int32_t VALIDATION_STRIDE = validation_stride_v<TuneEval>();
 
 struct WdlMarker
 {
@@ -1049,6 +1060,32 @@ void Tuner::run(const std::vector<DataSource>& sources)
     }
     cout << "Data loading complete" << endl << endl;
 
+    // Deterministic validation holdout: every Nth entry goes to the held-out
+    // set, the rest stay for training. Entries only reference the shared
+    // coefficient pool by offset, so the pool itself is not partitioned.
+    vector<Entry> validation_entries;
+    if constexpr (VALIDATION_STRIDE > 1)
+    {
+        vector<Entry> train_entries;
+        train_entries.reserve(entries.size());
+        validation_entries.reserve(entries.size() / VALIDATION_STRIDE + 1);
+        for (size_t i = 0; i < entries.size(); i++)
+        {
+            if (i % VALIDATION_STRIDE == 0)
+            {
+                validation_entries.push_back(entries[i]);
+            }
+            else
+            {
+                train_entries.push_back(entries[i]);
+            }
+        }
+        entries = std::move(train_entries);
+        cout << "Validation holdout: " << validation_entries.size()
+             << " positions (every " << VALIDATION_STRIDE << "th), training on "
+             << entries.size() << endl << endl;
+    }
+
     print_statistics(parameters, entries);
 
     if constexpr (TuneEval::retune_from_zero)
@@ -1111,6 +1148,11 @@ void Tuner::run(const std::vector<DataSource>& sources)
 
     const auto avg_error = get_average_error(thread_pool, entries, all_coeff_ptr, parameters, K);
     cout << "Initial error = " << avg_error << endl;
+    if constexpr (VALIDATION_STRIDE > 1)
+    {
+        const auto val_error = get_average_error(thread_pool, validation_entries, all_coeff_ptr, parameters, K);
+        cout << "Initial validation error = " << val_error << endl;
+    }
 
     const auto loop_start = high_resolution_clock::now();
     tune_t learning_rate = TuneEval::initial_learning_rate;
@@ -1221,7 +1263,13 @@ void Tuner::run(const std::vector<DataSource>& sources)
             const auto epochs_per_second = epoch * 1000.0 / elapsed_ms;
             const tune_t error = get_average_error(thread_pool, entries, all_coeff_ptr, parameters, K);
             print_elapsed(start);
-            cout << "Epoch " << epoch << " (" << epochs_per_second << " eps), error " << error << ", LR " << learning_rate << endl;
+            cout << "Epoch " << epoch << " (" << epochs_per_second << " eps), error " << error;
+            if constexpr (VALIDATION_STRIDE > 1)
+            {
+                const tune_t val_error = get_average_error(thread_pool, validation_entries, all_coeff_ptr, parameters, K);
+                cout << ", val " << val_error;
+            }
+            cout << ", LR " << learning_rate << endl;
             TuneEval::print_parameters(parameters);
         }
 
