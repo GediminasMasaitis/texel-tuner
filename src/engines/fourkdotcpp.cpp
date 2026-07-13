@@ -247,6 +247,7 @@ struct Trace
     int pawn_threat[5][2]{};
     int pawn_attacked_penalty[2][2]{};
     int tempo[2]{};
+    int pawn_count_adj[5][2]{};
 };
 
 const i32 phases[] = { 0, 0, 1, 1, 2, 4, 0 };
@@ -281,6 +282,9 @@ const i32 bishop_pawns[2] = { 0 };
 const i32 pawn_threat[5] = { 0 };
 const i32 pawn_attacked_penalty[2] = { S(-17, -11), S(-128, -128) };
 const i32 tempo = S(16, 8);
+// Pawn-count material adjustment (generalized Kaufman): each non-king
+// piece's value varies linearly with its own side's pawn count.
+const i32 pawn_count_adj[5] = { 0, 0, 0, 0, 0 };
 
 #define TraceIncr(parameter) trace.parameter[color]++
 #define TraceAdd(parameter, count) trace.parameter[color] += count
@@ -300,6 +304,7 @@ static Trace eval(Position& pos) {
 
         const u64 own_pawns = pos.colour[0] & pos.pieces[Pawn];
         const u64 opp_pawns = pos.colour[1] & pos.pieces[Pawn];
+        const int pawn_count = count(own_pawns);
         const u64 pawns[2] = { own_pawns, opp_pawns };
         const u64 attacked_by_pawns = se(opp_pawns) | sw(opp_pawns);
         u64 no_passers = pos.colour[1] & pos.pieces[Pawn];
@@ -328,6 +333,12 @@ static Trace eval(Position& pos) {
                 phase += phases[p];
                 score += material[p - 1];
                 TraceIncr(material[p - 1]);
+
+                // Pawn-count material adjustment
+                if (p < King) {
+                    score += pawn_count_adj[p - 1] * pawn_count;
+                    TraceAdd(pawn_count_adj[p - 1], pawn_count);
+                }
 
                 const int rank = sq / 8;
                 const int file = sq % 8;
@@ -685,6 +696,7 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_array(parameters, king_shield, 2);
     get_initial_parameter_array(parameters, pawn_attacked_penalty, 2);
     get_initial_parameter_single(parameters, tempo);
+    get_initial_parameter_array(parameters, pawn_count_adj, 5);
 
     return parameters;
 }
@@ -715,6 +727,7 @@ bounds_t FourkdotcppEval::get_parameter_bounds()
     add_bound_array (bounds, 2);  // king_shield
     add_bound_array (bounds, 2);  // pawn_attacked_penalty
     add_bound_single(bounds);     // tempo
+    add_bound_array (bounds, 5);  // pawn_count_adj
     return bounds;
 }
 
@@ -738,6 +751,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.king_shield, 2);
     get_coefficient_array(coefficients, trace.pawn_attacked_penalty, 2);
     get_coefficient_single(coefficients, trace.tempo);
+    get_coefficient_array(coefficients, trace.pawn_count_adj, 5);
     return coefficients;
 }
 
@@ -775,6 +789,7 @@ static void print_phase_block(std::stringstream& ss, const parameters_t& paramet
     print_array_tapered(ss, parameters, index, phase, "king_shield", 2);
     print_array_tapered(ss, parameters, index, phase, "pawn_attacked_penalty", 2);
     print_single_tapered(ss, parameters, index, phase, "tempo");
+    print_array_tapered(ss, parameters, index, phase, "pawn_count_adj", 5);
 
     ss << "}";
 }
