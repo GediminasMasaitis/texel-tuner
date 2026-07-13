@@ -22,23 +22,28 @@ namespace Fourkdotcpp
         constexpr static bool enable_qsearch = false;
         constexpr static bool filter_in_check = false;
         constexpr static tune_t initial_learning_rate = 1;
-        constexpr static int32_t learning_rate_drop_interval = 2000;
-        constexpr static tune_t learning_rate_drop_ratio = 0.5;
-        constexpr static bool adam_bias_correction = true;
+        constexpr static int32_t learning_rate_drop_interval = 10000;
+        constexpr static tune_t learning_rate_drop_ratio = 1;
+        constexpr static bool adam_bias_correction = false;
 
         // Convex objective for the linear model (see USE_CROSS_ENTROPY in
-        // tuner.cpp). Remove or set false to fall back to squared error.
-        constexpr static bool use_cross_entropy = true;
+        // tuner.cpp). Set true for cross-entropy, false for squared error.
+        // NOTE: with weight decay this shrank weakly-determined mg material
+        // (queen mg ~836 -> ~480) and SPRT'd negative; disabled for now.
+        constexpr static bool use_cross_entropy = false;
 
         // Decoupled AdamW weight decay per epoch, scaled by the current
         // learning rate. Breaks collinearity ridges (e.g. material vs
         // pawn-count interaction terms) by preferring the minimum-norm
-        // solution. Remove or set to 0 to disable.
-        constexpr static tune_t l2_lambda = 1e-4;
+        // solution. 0 disables. NOTE: shrinks saturation-weakly-determined
+        // params (mg material); disabled for now, revisit for interaction
+        // terms (consider exempting material or phase-coupling decay).
+        constexpr static tune_t l2_lambda = 0;
 
         // Hold out every Nth position for a validation loss printed alongside
-        // the training loss (20 = 5%). Remove or set to 0 to train on all data.
-        constexpr static int32_t validation_stride = 20;
+        // the training loss (20 = 5%). 0 trains on all data (disabled so the
+        // training set matches historical runs exactly).
+        constexpr static int32_t validation_stride = 0;
 
         // On a clamp (an active parameter bound), optionally discard the Adam
         // moment state for that coordinate so it does not "wind up" against the
