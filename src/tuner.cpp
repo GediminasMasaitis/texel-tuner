@@ -42,6 +42,25 @@ constexpr int32_t SAFETY_COUNT = safety_count_v<TuneEval>();
 constexpr int32_t SAFETY_START = safety_start_v<TuneEval>();
 constexpr tune_t SAFETY_DIVISOR = safety_divisor_v<TuneEval>();
 
+// Optional decoupled L2 weight decay (AdamW). Each epoch every parameter is
+// shrunk by learning_rate * l2_lambda * value after the Adam step. On flat
+// ridges created by collinear features this uniquely selects the minimum-norm
+// solution instead of an arbitrary point. 0 (default) disables it.
+template <class T> constexpr tune_t l2_lambda_v()
+{
+    if constexpr (requires { T::l2_lambda; }) return static_cast<tune_t>(T::l2_lambda);
+    else return 0;
+}
+// Optional cross-entropy loss. With a linear model the sigmoid + CE objective
+// is convex (unique global optimum); squared error (default) is not.
+template <class T> constexpr bool cross_entropy_v()
+{
+    if constexpr (requires { T::use_cross_entropy; }) return T::use_cross_entropy;
+    else return false;
+}
+constexpr tune_t L2_LAMBDA = l2_lambda_v<TuneEval>();
+constexpr bool USE_CROSS_ENTROPY = cross_entropy_v<TuneEval>();
+
 struct WdlMarker
 {
     string marker;
@@ -799,8 +818,17 @@ static tune_t get_average_error(ThreadPool& thread_pool, const vector<Entry>& en
                 const auto& entry = entries[i];
                 const auto eval = linear_eval(entry, all_coefficients, parameters);
                 const auto sig = sigmoid(K, eval);
-                const auto diff = entry.wdl - sig;
-                const auto entry_error = diff * diff;
+                tune_t entry_error;
+                if constexpr (USE_CROSS_ENTROPY)
+                {
+                    const auto clamped = std::clamp(sig, static_cast<tune_t>(1e-12), static_cast<tune_t>(1) - static_cast<tune_t>(1e-12));
+                    entry_error = -(entry.wdl * log(clamped) + (1 - entry.wdl) * log(1 - clamped));
+                }
+                else
+                {
+                    const auto diff = entry.wdl - sig;
+                    entry_error = diff * diff;
+                }
                 error += entry_error;
             }
             thread_errors[thread_id] = error;
@@ -870,9 +898,18 @@ static void eval_and_update_gradient(parameters_t& gradient, const Entry& entry,
     }
 #endif
 
-    // Sigmoid + derivative
+    // Sigmoid + loss residual. Squared error keeps the sigmoid derivative
+    // factor; for cross-entropy it cancels analytically, leaving (wdl - sig).
     const tune_t sig = sigmoid(K, score);
-    const tune_t res = (entry.wdl - sig) * sig * (1 - sig);
+    tune_t res;
+    if constexpr (USE_CROSS_ENTROPY)
+    {
+        res = entry.wdl - sig;
+    }
+    else
+    {
+        res = (entry.wdl - sig) * sig * (1 - sig);
+    }
 
     // Second pass: accumulate gradient (coefficients still in L1)
 #if TAPERED
@@ -1066,6 +1103,11 @@ void Tuner::run(const std::vector<DataSource>& sources)
         K = TuneEval::preferred_k;
     }
     cout << "K = " << K << endl;
+    cout << "Loss: " << (USE_CROSS_ENTROPY ? "cross-entropy" : "squared error") << endl;
+    if constexpr (L2_LAMBDA > 0)
+    {
+        cout << "L2 weight decay lambda = " << L2_LAMBDA << endl;
+    }
 
     const auto avg_error = get_average_error(thread_pool, entries, all_coeff_ptr, parameters, K);
     cout << "Initial error = " << avg_error << endl;
@@ -1125,6 +1167,13 @@ void Tuner::run(const std::vector<DataSource>& sources)
                 const tune_t corrected_momentum = momentum[parameter_index][phase_stage] / bias_correction1;
                 const tune_t corrected_velocity = velocity[parameter_index][phase_stage] / bias_correction2;
                 parameters[parameter_index][phase_stage] -= learning_rate * corrected_momentum / (static_cast<tune_t>(1e-8) + sqrt(corrected_velocity));
+
+                // Decoupled L2 weight decay (AdamW): shrink toward zero after
+                // the Adam step, scaled by the current learning rate.
+                if constexpr (L2_LAMBDA > 0)
+                {
+                    parameters[parameter_index][phase_stage] -= learning_rate * L2_LAMBDA * parameters[parameter_index][phase_stage];
+                }
 
                 // Projected gradient descent: clamp each parameter back into its
                 // per-term, per-phase bounds so the other parameters tune around

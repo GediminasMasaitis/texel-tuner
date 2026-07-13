@@ -22,9 +22,19 @@ namespace Fourkdotcpp
         constexpr static bool enable_qsearch = false;
         constexpr static bool filter_in_check = false;
         constexpr static tune_t initial_learning_rate = 1;
-        constexpr static int32_t learning_rate_drop_interval = 10000;
-        constexpr static tune_t learning_rate_drop_ratio = 1;
-        constexpr static bool adam_bias_correction = false;
+        constexpr static int32_t learning_rate_drop_interval = 1000;
+        constexpr static tune_t learning_rate_drop_ratio = 0.5;
+        constexpr static bool adam_bias_correction = true;
+
+        // Convex objective for the linear model (see USE_CROSS_ENTROPY in
+        // tuner.cpp). Remove or set false to fall back to squared error.
+        constexpr static bool use_cross_entropy = true;
+
+        // Decoupled AdamW weight decay per epoch, scaled by the current
+        // learning rate. Breaks collinearity ridges (e.g. material vs
+        // pawn-count interaction terms) by preferring the minimum-norm
+        // solution. Remove or set to 0 to disable.
+        constexpr static tune_t l2_lambda = 1e-4;
 
         // On a clamp (an active parameter bound), optionally discard the Adam
         // moment state for that coordinate so it does not "wind up" against the
