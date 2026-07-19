@@ -368,10 +368,10 @@ static Trace eval(Position& pos) {
                 const u64 mobility = get_mobility(sq, p /*== King ? Queen : p*/, &pos);
                 if (p > Pawn) {
                     // Piece threats: minor ([0]) / rook ([1]) attacks on their
-                    // non-pawns that are not defended by their pawns.
-                    // Counted per attacker-target pair, matching 4k.c.
+                    // non-pawns (king excluded) that are not defended by their
+                    // pawns. Counted per attacker-target pair, matching 4k.c.
                     if (p < Queen) {
-                        const int threatened = count(mobility & pos.colour[1] & ~(pos.pieces[Pawn] | attacked_by_pawns));
+                        const int threatened = count(mobility & pos.colour[1] & ~(pos.pieces[Pawn] | attacked_by_pawns | pos.pieces[King]));
                         score += piece_threats[p == Rook] * threatened;
                         TraceAdd(piece_threats[p == Rook], threatened);
                     }
