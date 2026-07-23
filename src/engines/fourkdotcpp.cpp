@@ -242,7 +242,7 @@ struct Trace
     int pawn_threat[5][2]{};
     int pawn_attacked_penalty[2][2]{};
     int piece_threats[2][2]{};
-    int minor_behind_pawn[2]{};
+    int piece_behind_pawn[5][2]{};
     int tempo[2]{};
 };
 
@@ -278,7 +278,7 @@ const i32 bishop_pawns[2] = { 0 };
 const i32 pawn_threat[5] = { 0 };
 const i32 pawn_attacked_penalty[2] = { S(-17, -11), S(-128, -128) };
 const i32 piece_threats[2] = { S(30, 29), S(9, 12) }; // [0] = minor, [1] = rook
-const i32 minor_behind_pawn = S(9, 32);
+const i32 piece_behind_pawn[5] = { S(4, 22), S(4, 22), 0, 0, 0 };
 const i32 tempo = S(16, 8);
 
 #define TraceIncr(parameter) trace.parameter[color]++
@@ -382,10 +382,11 @@ static Trace eval(Position& pos) {
                         TraceAdd(piece_threats[p == Rook], threatened);
                     }
 
-                    // Minor piece directly behind a pawn of either colour. Matches 4k.c.
-                    if (p < Rook && north(piece_bb) & pos.pieces[Pawn]) {
-                        score += minor_behind_pawn;
-                        TraceIncr(minor_behind_pawn);
+                    // Piece directly behind a pawn of either colour,
+                    // indexed by piece type. Matches 4k.c.
+                    if (north(piece_bb) & pos.pieces[Pawn]) {
+                        score += piece_behind_pawn[p - 2];
+                        TraceIncr(piece_behind_pawn[p - 2]);
                     }
 
                     score += mobilities[p - 2] * count(mobility & ~pos.colour[0] & ~attacked_by_pawns);
@@ -701,7 +702,7 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_array(parameters, king_shield, 2);
     get_initial_parameter_array(parameters, pawn_attacked_penalty, 2);
     get_initial_parameter_array(parameters, piece_threats, 2);
-    get_initial_parameter_single(parameters, minor_behind_pawn);
+    get_initial_parameter_array(parameters, piece_behind_pawn, 5);
     get_initial_parameter_single(parameters, tempo);
 
     return parameters;
@@ -733,7 +734,7 @@ bounds_t FourkdotcppEval::get_parameter_bounds()
     add_bound_array (bounds, 2);  // king_shield
     add_bound_array (bounds, 2);  // pawn_attacked_penalty
     add_bound_array (bounds, 2);  // piece_threats
-    add_bound_single(bounds);     // minor_behind_pawn
+    add_bound_array (bounds, 5);  // piece_behind_pawn
     add_bound_single(bounds);     // tempo
     return bounds;
 }
@@ -758,7 +759,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.king_shield, 2);
     get_coefficient_array(coefficients, trace.pawn_attacked_penalty, 2);
     get_coefficient_array(coefficients, trace.piece_threats, 2);
-    get_coefficient_single(coefficients, trace.minor_behind_pawn);
+    get_coefficient_array(coefficients, trace.piece_behind_pawn, 5);
     get_coefficient_single(coefficients, trace.tempo);
     return coefficients;
 }
@@ -797,7 +798,7 @@ static void print_phase_block(std::stringstream& ss, const parameters_t& paramet
     print_array_tapered(ss, parameters, index, phase, "king_shield", 2);
     print_array_tapered(ss, parameters, index, phase, "pawn_attacked_penalty", 2);
     print_array_tapered(ss, parameters, index, phase, "piece_threats", 2);
-    print_single_tapered(ss, parameters, index, phase, "minor_behind_pawn");
+    print_array_tapered(ss, parameters, index, phase, "piece_behind_pawn", 5);
     print_single_tapered(ss, parameters, index, phase, "tempo");
 
     ss << "}";
