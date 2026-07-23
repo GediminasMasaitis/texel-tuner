@@ -242,7 +242,7 @@ struct Trace
     int pawn_threat[5][2]{};
     int pawn_attacked_penalty[2][2]{};
     int piece_threats[2][2]{};
-    int piece_behind_pawn[5][2]{};
+    int piece_behind_pawn[6][2]{};
     int tempo[2]{};
 };
 
@@ -278,7 +278,7 @@ const i32 bishop_pawns[2] = { 0 };
 const i32 pawn_threat[5] = { 0 };
 const i32 pawn_attacked_penalty[2] = { S(-17, -11), S(-128, -128) };
 const i32 piece_threats[2] = { S(30, 29), S(9, 12) }; // [0] = minor, [1] = rook
-const i32 piece_behind_pawn[5] = { S(4, 22), S(4, 22), 0, 0, 0 };
+const i32 piece_behind_pawn[6] = { 0, S(3, 23), S(3, 21), S(-4, -2), S(-4, 5), S(3, 0) };
 const i32 tempo = S(16, 8);
 
 #define TraceIncr(parameter) trace.parameter[color]++
@@ -371,6 +371,14 @@ static Trace eval(Position& pos) {
                     }
                 }
 
+                // Piece (or pawn) directly behind a pawn of either colour,
+                // indexed by piece type. For pawns this scores direct doubling
+                // and rams; open_files covers file-level doubling. Matches 4k.c.
+                if (north(piece_bb) & pos.pieces[Pawn]) {
+                    score += piece_behind_pawn[p - 1];
+                    TraceIncr(piece_behind_pawn[p - 1]);
+                }
+
                 const u64 mobility = get_mobility(sq, p /*== King ? Queen : p*/, &pos);
                 if (p > Pawn) {
                     // Piece threats: minor ([0]) / rook ([1]) attacks on their
@@ -380,13 +388,6 @@ static Trace eval(Position& pos) {
                         const int threatened = count(mobility & pos.colour[1] & ~(pos.pieces[Pawn] | attacked_by_pawns));
                         score += piece_threats[p == Rook] * threatened;
                         TraceAdd(piece_threats[p == Rook], threatened);
-                    }
-
-                    // Piece directly behind a pawn of either colour,
-                    // indexed by piece type. Matches 4k.c.
-                    if (north(piece_bb) & pos.pieces[Pawn]) {
-                        score += piece_behind_pawn[p - 2];
-                        TraceIncr(piece_behind_pawn[p - 2]);
                     }
 
                     score += mobilities[p - 2] * count(mobility & ~pos.colour[0] & ~attacked_by_pawns);
@@ -702,7 +703,7 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_array(parameters, king_shield, 2);
     get_initial_parameter_array(parameters, pawn_attacked_penalty, 2);
     get_initial_parameter_array(parameters, piece_threats, 2);
-    get_initial_parameter_array(parameters, piece_behind_pawn, 5);
+    get_initial_parameter_array(parameters, piece_behind_pawn, 6);
     get_initial_parameter_single(parameters, tempo);
 
     return parameters;
@@ -734,7 +735,7 @@ bounds_t FourkdotcppEval::get_parameter_bounds()
     add_bound_array (bounds, 2);  // king_shield
     add_bound_array (bounds, 2);  // pawn_attacked_penalty
     add_bound_array (bounds, 2);  // piece_threats
-    add_bound_array (bounds, 5);  // piece_behind_pawn
+    add_bound_array (bounds, 6);  // piece_behind_pawn
     add_bound_single(bounds);     // tempo
     return bounds;
 }
@@ -759,7 +760,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.king_shield, 2);
     get_coefficient_array(coefficients, trace.pawn_attacked_penalty, 2);
     get_coefficient_array(coefficients, trace.piece_threats, 2);
-    get_coefficient_array(coefficients, trace.piece_behind_pawn, 5);
+    get_coefficient_array(coefficients, trace.piece_behind_pawn, 6);
     get_coefficient_single(coefficients, trace.tempo);
     return coefficients;
 }
@@ -798,7 +799,7 @@ static void print_phase_block(std::stringstream& ss, const parameters_t& paramet
     print_array_tapered(ss, parameters, index, phase, "king_shield", 2);
     print_array_tapered(ss, parameters, index, phase, "pawn_attacked_penalty", 2);
     print_array_tapered(ss, parameters, index, phase, "piece_threats", 2);
-    print_array_tapered(ss, parameters, index, phase, "piece_behind_pawn", 5);
+    print_array_tapered(ss, parameters, index, phase, "piece_behind_pawn", 6);
     print_single_tapered(ss, parameters, index, phase, "tempo");
 
     ss << "}";
