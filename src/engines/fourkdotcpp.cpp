@@ -413,11 +413,8 @@ static Trace eval(Position& pos) {
                     }
                 }
 
-                if (p == King && piece_bb & 0xC3D7) {
-                    // C3D7 = Reasonable king squares
-                    // Pawn cover is fixed in position, so it won't
-                    // walk around with the king.
-                    const u64 shield = file < 3 ? 0x700 : 0xE000;
+                if (p == King) {
+                    const u64 shield = king(sq, 0);
                     score += count(shield & own_pawns) * king_shield[0];
                     TraceAdd(king_shield[0], count(shield & own_pawns));
 
