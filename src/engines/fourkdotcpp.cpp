@@ -237,7 +237,7 @@ struct Trace
     int passed_blocked_pawns[6][2]{};
     int passed_king_distance[2][2]{};
     int bishop_pair[2]{};
-    int king_shield[2][2]{};
+    int king_shield[3][2]{};
     int bishop_pawns[2][2]{};
     int pawn_threat[5][2]{};
     int pawn_attacked_penalty[2][2]{};
@@ -272,7 +272,7 @@ const i32 passed_pawns[] = { 0,0,0,0,0,0 };
 const i32 passed_blocked_pawns[] = { 0,0,0,0,0,0 };
 const i32 passed_king_distance[] = { 0,0 };
 const i32 bishop_pair = 0;
-const i32 king_shield[2] = { 0 };
+const i32 king_shield[3] = { 0 }; // [0] = own pawns on shield, [1] = own pawns one ahead, [2] = enemy pawns one ahead (pawn storm)
 const i32 bishop_pawns[2] = { 0 };
 const i32 pawn_threat[5] = { 0 };
 const i32 pawn_attacked_penalty[2] = { S(-17, -11), S(-128, -128) };
@@ -423,6 +423,10 @@ static Trace eval(Position& pos) {
 
                     score += count(north(shield) & own_pawns) * king_shield[1];
                     TraceAdd(king_shield[1], count(north(shield) & own_pawns));
+
+                    // Pawn storm: enemy pawns on the same squares, touching the shield.
+                    score += count(north(shield) & opp_pawns) * king_shield[2];
+                    TraceAdd(king_shield[2], count(north(shield) & opp_pawns));
                 }
             }
         }
@@ -690,7 +694,7 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_array(parameters, phalanx_pawn, 6);
     get_initial_parameter_single(parameters, bishop_pair);
     get_initial_parameter_array(parameters, bishop_pawns, 2);
-    get_initial_parameter_array(parameters, king_shield, 2);
+    get_initial_parameter_array(parameters, king_shield, 3);
     get_initial_parameter_array(parameters, pawn_attacked_penalty, 2);
     get_initial_parameter_array(parameters, piece_threats, 2);
     get_initial_parameter_single(parameters, tempo);
@@ -721,7 +725,7 @@ bounds_t FourkdotcppEval::get_parameter_bounds()
     add_bound_array (bounds, 6);  // phalanx_pawn
     add_bound_single(bounds);     // bishop_pair
     add_bound_array (bounds, 2);  // bishop_pawns
-    add_bound_array (bounds, 2);  // king_shield
+    add_bound_array (bounds, 3);  // king_shield
     add_bound_array (bounds, 2);  // pawn_attacked_penalty
     add_bound_array (bounds, 2);  // piece_threats
     add_bound_single(bounds);     // tempo
@@ -745,7 +749,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.phalanx_pawn, 6);
     get_coefficient_single(coefficients, trace.bishop_pair);
     get_coefficient_array(coefficients, trace.bishop_pawns, 2);
-    get_coefficient_array(coefficients, trace.king_shield, 2);
+    get_coefficient_array(coefficients, trace.king_shield, 3);
     get_coefficient_array(coefficients, trace.pawn_attacked_penalty, 2);
     get_coefficient_array(coefficients, trace.piece_threats, 2);
     get_coefficient_single(coefficients, trace.tempo);
@@ -783,7 +787,7 @@ static void print_phase_block(std::stringstream& ss, const parameters_t& paramet
     print_array_tapered(ss, parameters, index, phase, "phalanx_pawn", 6);
     print_single_tapered(ss, parameters, index, phase, "bishop_pair");
     print_array_tapered(ss, parameters, index, phase, "bishop_pawns", 2);
-    print_array_tapered(ss, parameters, index, phase, "king_shield", 2);
+    print_array_tapered(ss, parameters, index, phase, "king_shield", 3);
     print_array_tapered(ss, parameters, index, phase, "pawn_attacked_penalty", 2);
     print_array_tapered(ss, parameters, index, phase, "piece_threats", 2);
     print_single_tapered(ss, parameters, index, phase, "tempo");
