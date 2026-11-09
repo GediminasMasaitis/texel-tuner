@@ -234,7 +234,7 @@ struct Trace
     int protected_pawn[6][2]{};
     int phalanx_pawn[6][2]{};
     int passed_pawns[6][2]{};
-    int passed_blocked_pawns[6][2]{};
+    int passed_blocked_pawns[2][6][2]{};
     int passed_king_distance[2][2]{};
     int bishop_pair[2]{};
     int king_shield[2][2]{};
@@ -269,7 +269,7 @@ const i32 king_attacks[] = { 0,0,0,0,0 };
 const i32 protected_pawn[6] = { 0, 0, 0, 0, 0, 0 };
 const i32 phalanx_pawn[6] = { 0, 0, 0, 0, 0, 0 };
 const i32 passed_pawns[] = { 0,0,0,0,0,0 };
-const i32 passed_blocked_pawns[] = { 0,0,0,0,0,0 };
+const i32 passed_blocked_pawns[2][6] = { { 0,0,0,0,0,0 }, { 0,0,0,0,0,0 } }; // [0] = square in front, [1] = anywhere on path
 const i32 passed_king_distance[] = { 0,0 };
 const i32 bishop_pair = 0;
 const i32 king_shield[2] = { 0 };
@@ -354,8 +354,14 @@ static Trace eval(Position& pos) {
                     TraceIncr(passed_pawns[rank - 1]);
 
                     if (north(1ULL << sq) & pos.colour[1]) {
-                        score += passed_blocked_pawns[rank - 1];
-                        TraceIncr(passed_blocked_pawns[rank - 1]);
+                        score += passed_blocked_pawns[0][rank - 1];
+                        TraceIncr(passed_blocked_pawns[0][rank - 1]);
+                    }
+
+                    // Any enemy piece anywhere on the path ahead of the passer
+                    if (north(in_front) & pos.colour[1]) {
+                        score += passed_blocked_pawns[1][rank - 1];
+                        TraceIncr(passed_blocked_pawns[1][rank - 1]);
                     }
 
                     // King distance to the square in front of the passer
@@ -684,7 +690,7 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_array(parameters, pawn_threat, 5);
     get_initial_parameter_array(parameters, open_files, 12);
     get_initial_parameter_array(parameters, passed_pawns, 6);
-    get_initial_parameter_array(parameters, passed_blocked_pawns, 6);
+    get_initial_parameter_array_2d(parameters, passed_blocked_pawns, 2, 6);
     get_initial_parameter_array(parameters, passed_king_distance, 2);
     get_initial_parameter_array(parameters, protected_pawn, 6);
     get_initial_parameter_array(parameters, phalanx_pawn, 6);
@@ -715,7 +721,7 @@ bounds_t FourkdotcppEval::get_parameter_bounds()
     add_bound_array (bounds, 5);  // pawn_threat
     add_bound_array (bounds, 12); // open_files
     add_bound_array (bounds, 6);  // passed_pawns
-    add_bound_array (bounds, 6);  // passed_blocked_pawns
+    add_bound_array_2d(bounds, 2, 6); // passed_blocked_pawns
     add_bound_array (bounds, 2);  // passed_king_distance
     add_bound_array (bounds, 6);  // protected_pawn
     add_bound_array (bounds, 6);  // phalanx_pawn
@@ -739,7 +745,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.pawn_threat, 5);
     get_coefficient_array(coefficients, trace.open_files, 12);
     get_coefficient_array(coefficients, trace.passed_pawns, 6);
-    get_coefficient_array(coefficients, trace.passed_blocked_pawns, 6);
+    get_coefficient_array_2d(coefficients, trace.passed_blocked_pawns, 2, 6);
     get_coefficient_array(coefficients, trace.passed_king_distance, 2);
     get_coefficient_array(coefficients, trace.protected_pawn, 6);
     get_coefficient_array(coefficients, trace.phalanx_pawn, 6);
@@ -777,7 +783,7 @@ static void print_phase_block(std::stringstream& ss, const parameters_t& paramet
     print_array_tapered(ss, parameters, index, phase, "pawn_threat", 5);
     print_array_tapered(ss, parameters, index, phase, "open_files", 12);
     print_array_tapered(ss, parameters, index, phase, "passed_pawns", 6);
-    print_array_tapered(ss, parameters, index, phase, "passed_blocked_pawns", 6);
+    print_array_tapered_2d(ss, parameters, index, phase, "passed_blocked_pawns", 2, 6);
     print_array_tapered(ss, parameters, index, phase, "passed_king_distance", 2);
     print_array_tapered(ss, parameters, index, phase, "protected_pawn", 6);
     print_array_tapered(ss, parameters, index, phase, "phalanx_pawn", 6);
