@@ -237,7 +237,7 @@ struct Trace
     int passed_blocked_pawns[6][2]{};
     int passed_king_distance[2][2]{};
     int bishop_pair[2]{};
-    int king_shield[2][2]{};
+    int king_shield[2][2][2]{};
     int bishop_pawns[2][2]{};
     int pawn_threat[5][2]{};
     int pawn_attacked_penalty[2][2]{};
@@ -272,7 +272,7 @@ const i32 passed_pawns[] = { 0,0,0,0,0,0 };
 const i32 passed_blocked_pawns[] = { 0,0,0,0,0,0 };
 const i32 passed_king_distance[] = { 0,0 };
 const i32 bishop_pair = 0;
-const i32 king_shield[2] = { 0 };
+const i32 king_shield[2][2] = { { 0, 0 }, { 0, 0 } }; // [own/opp pawns][shield row]
 const i32 bishop_pawns[2] = { 0 };
 const i32 pawn_threat[5] = { 0 };
 const i32 pawn_attacked_penalty[2] = { S(-17, -11), S(-128, -128) };
@@ -418,11 +418,13 @@ static Trace eval(Position& pos) {
                     // Pawn cover is fixed in position, so it won't
                     // walk around with the king.
                     const u64 shield = file < 3 ? 0x700 : 0xE000;
-                    score += count(shield & own_pawns) * king_shield[0];
-                    TraceAdd(king_shield[0], count(shield & own_pawns));
+                    for (int i = 0; i < 2; ++i) {
+                        score += count(shield & pawns[i]) * king_shield[i][0];
+                        TraceAdd(king_shield[i][0], count(shield & pawns[i]));
 
-                    score += count(north(shield) & own_pawns) * king_shield[1];
-                    TraceAdd(king_shield[1], count(north(shield) & own_pawns));
+                        score += count(north(shield) & pawns[i]) * king_shield[i][1];
+                        TraceAdd(king_shield[i][1], count(north(shield) & pawns[i]));
+                    }
                 }
             }
         }
@@ -690,7 +692,7 @@ parameters_t FourkdotcppEval::get_initial_parameters()
     get_initial_parameter_array(parameters, phalanx_pawn, 6);
     get_initial_parameter_single(parameters, bishop_pair);
     get_initial_parameter_array(parameters, bishop_pawns, 2);
-    get_initial_parameter_array(parameters, king_shield, 2);
+    get_initial_parameter_array_2d(parameters, king_shield, 2, 2);
     get_initial_parameter_array(parameters, pawn_attacked_penalty, 2);
     get_initial_parameter_array(parameters, piece_threats, 2);
     get_initial_parameter_single(parameters, tempo);
@@ -721,7 +723,7 @@ bounds_t FourkdotcppEval::get_parameter_bounds()
     add_bound_array (bounds, 6);  // phalanx_pawn
     add_bound_single(bounds);     // bishop_pair
     add_bound_array (bounds, 2);  // bishop_pawns
-    add_bound_array (bounds, 2);  // king_shield
+    add_bound_array_2d(bounds, 2, 2); // king_shield
     add_bound_array (bounds, 2);  // pawn_attacked_penalty
     add_bound_array (bounds, 2);  // piece_threats
     add_bound_single(bounds);     // tempo
@@ -745,7 +747,7 @@ static coefficients_t get_coefficients(const Trace& trace)
     get_coefficient_array(coefficients, trace.phalanx_pawn, 6);
     get_coefficient_single(coefficients, trace.bishop_pair);
     get_coefficient_array(coefficients, trace.bishop_pawns, 2);
-    get_coefficient_array(coefficients, trace.king_shield, 2);
+    get_coefficient_array_2d(coefficients, trace.king_shield, 2, 2);
     get_coefficient_array(coefficients, trace.pawn_attacked_penalty, 2);
     get_coefficient_array(coefficients, trace.piece_threats, 2);
     get_coefficient_single(coefficients, trace.tempo);
@@ -783,7 +785,7 @@ static void print_phase_block(std::stringstream& ss, const parameters_t& paramet
     print_array_tapered(ss, parameters, index, phase, "phalanx_pawn", 6);
     print_single_tapered(ss, parameters, index, phase, "bishop_pair");
     print_array_tapered(ss, parameters, index, phase, "bishop_pawns", 2);
-    print_array_tapered(ss, parameters, index, phase, "king_shield", 2);
+    print_array_tapered_2d(ss, parameters, index, phase, "king_shield", 2, 2);
     print_array_tapered(ss, parameters, index, phase, "pawn_attacked_penalty", 2);
     print_array_tapered(ss, parameters, index, phase, "piece_threats", 2);
     print_single_tapered(ss, parameters, index, phase, "tempo");
